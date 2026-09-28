@@ -94,7 +94,7 @@ body {
 /* Site Navbar — seamless without dividing border */
 .site-nav {
   position: fixed;
-  z-index: 4;
+  z-index: 10;
   inset: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -106,6 +106,32 @@ body {
   -webkit-backdrop-filter: blur(14px);
   opacity: calc(1 - var(--blackout-opacity, 0));
   transition: opacity 180ms linear;
+}
+
+.site-nav__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4b8eff, #adc6ff, #60a5fa);
+  box-shadow: 0 0 10px #4b8eff;
+  transition: width 100ms ease-out;
+  pointer-events: none;
+}
+
+/* Ambient Background Glow Orb */
+.ambient-glow-orb {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(680px, 90vw);
+  height: min(680px, 90vw);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(75, 142, 255, 0.16) 0%, rgba(75, 142, 255, 0.04) 45%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .site-brand,
@@ -192,6 +218,7 @@ body {
   inset: 0;
   z-index: 3;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 80px clamp(24px, 6vw, 100px) 40px;
@@ -207,7 +234,6 @@ body {
   visibility: hidden !important;
   pointer-events: none !important;
 }
-
 
 .hero-hex-grid {
   position: absolute;
@@ -267,8 +293,14 @@ body {
   font-family: var(--font-headline);
   font-size: clamp(3.2rem, 5.2vw, 5.2rem);
   font-weight: 800;
-  line-height: 1.02;
+  line-height: 1.05;
   letter-spacing: -0.035em;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-title-line {
+  display: block;
 }
 
 .hero-title__highlight {
@@ -418,6 +450,53 @@ body {
   color: #60a5fa;
   font-weight: 600;
   margin-top: 4px;
+}
+
+/* Minimalist Floating Scroll Indicator */
+.scroll-indicator {
+  margin-top: clamp(24px, 4vh, 48px);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  background: rgba(18, 20, 30, 0.7);
+  border: 1px solid rgba(75, 142, 255, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: all 220ms ease;
+}
+
+.scroll-indicator:hover {
+  border-color: rgba(75, 142, 255, 0.5);
+  background: rgba(26, 29, 44, 0.85);
+  box-shadow: 0 4px 24px rgba(75, 142, 255, 0.3);
+}
+
+.scroll-indicator__text {
+  font: 600 0.65rem var(--font-mono);
+  letter-spacing: 0.14em;
+  color: var(--brand-primary);
+}
+
+.scroll-indicator__track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(75, 142, 255, 0.18);
+}
+
+.scroll-indicator__chevron {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: inline-block;
 }
 
 /* Portal Content Overlay */
@@ -721,6 +800,22 @@ body {
   margin-top: 4px;
   color: var(--text-dim);
   font-size: 0.72rem;
+}
+
+.telemetry-card__bar-wrap {
+  margin-top: 10px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.telemetry-card__bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #4b8eff, #60a5fa);
+  box-shadow: 0 0 8px rgba(75, 142, 255, 0.8);
 }
 
 /* Pipeline Flow & Facts */

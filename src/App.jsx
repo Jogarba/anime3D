@@ -66,6 +66,7 @@ export default function App() {
   const heroVisibleRef = useRef(true)
   const [activePortal, setActivePortal] = useState(-1)
   const [heroVisible, setHeroVisible] = useState(true)
+  const [scrollPercent, setScrollPercent] = useState(0)
 
   const navigateToProgress = (event, target) => {
     event.preventDefault()
@@ -77,7 +78,79 @@ export default function App() {
     return cycleStart + CYCLE_DURATION - PORTAL_CONTENT_HOLD_DURATION + 0.18
   }
 
-  // Anime.js entrance animation on portal change
+  // Anime.js initial hero entrance animation on page load
+  useEffect(() => {
+    const tl = createTimeline({ defaults: { ease: 'outCubic' } })
+
+    tl.add('.site-nav', {
+      opacity: [0, 1],
+      translateY: [-16, 0],
+      duration: 650,
+    })
+    .add('.hero-badge', {
+      opacity: [0, 1],
+      translateY: [-18, 0],
+      duration: 600,
+    }, '-=400')
+    .add('.hero-title-line', {
+      opacity: [0, 1],
+      translateY: [32, 0],
+      duration: 750,
+      delay: stagger(100),
+    }, '-=350')
+    .add('.hero-subtitle', {
+      opacity: [0, 1],
+      translateY: [20, 0],
+      duration: 650,
+    }, '-=400')
+    .add('.hero-cta-wrap', {
+      opacity: [0, 1],
+      scale: [0.92, 1],
+      duration: 600,
+    }, '-=350')
+    .add('.hero-stats-bar > *', {
+      opacity: [0, 1],
+      translateY: [14, 0],
+      duration: 500,
+      delay: stagger(60),
+    }, '-=300')
+    .add('.hero-terminal', {
+      opacity: [0, 1],
+      translateY: [28, 0],
+      scale: [0.96, 1],
+      duration: 800,
+    }, '-=650')
+    .add('.hero-terminal__body .t-log', {
+      opacity: [0, 1],
+      translateX: [-12, 0],
+      duration: 400,
+      delay: stagger(90),
+    }, '-=400')
+    .add('.scroll-indicator', {
+      opacity: [0, 1],
+      translateY: [12, 0],
+      duration: 700,
+    }, '-=200')
+
+    // Continuous ambient glow pulse
+    animate('.ambient-glow-orb', {
+      scale: [1, 1.25, 1],
+      opacity: [0.35, 0.6, 0.35],
+      duration: 7000,
+      loop: true,
+      ease: 'inOutSine',
+    })
+
+    // Scroll indicator floating bounce
+    animate('.scroll-indicator__chevron', {
+      translateY: [0, 7, 0],
+      duration: 1800,
+      loop: true,
+      ease: 'inOutQuad',
+    })
+  }, [])
+
+  // Anime.js entrance animation on portal change + interactive telemetry trigger
   useEffect(() => {
     if (activePortal >= 0 && landingSections[activePortal]) {
       const panel = document.getElementById(landingSections[activePortal].id)
@@ -88,9 +161,32 @@ export default function App() {
         if (targets && targets.length > 0) {
           animate(targets, {
             opacity: [0, 1],
-            translateY: [22, 0],
-            duration: 520,
-            delay: stagger(38, { start: 40 }),
+            translateY: [24, 0],
+            duration: 580,
+            delay: stagger(42, { start: 50 }),
+            ease: 'outCubic',
+          })
+        }
+
+        // Animate telemetry bars and metric cards
+        const telemetryBars = panel.querySelectorAll('.telemetry-card__bar-fill')
+        if (telemetryBars.length > 0) {
+          animate(telemetryBars, {
+            width: (el) => [0, el.getAttribute('data-fill') || '75%'],
+            duration: 850,
+            delay: stagger(80, { start: 200 }),
+            ease: 'outQuart',
+          })
+        }
+
+        // Animate comparison table rows
+        const tableRows = panel.querySelectorAll('.comparison-table tbody tr')
+        if (tableRows.length > 0) {
+          animate(tableRows, {
+            opacity: [0, 1],
+            translateX: [-16, 0],
+            duration: 500,
+            delay: stagger(60, { start: 150 }),
             ease: 'outQuad',
           })
         }
@@ -160,6 +256,8 @@ export default function App() {
         String(active.opacity),
       )
       
+      setScrollPercent(Math.min(100, Math.round((progress.current / (TOTAL_SCROLL_PROGRESS + 1.2)) * 100)))
+
       // Hero view disappears immediately as soon as user starts scrolling
       const heroOpacity = clamp01(1 - progress.current / 0.22)
       root.style.setProperty(
@@ -232,8 +330,9 @@ export default function App() {
         Evolut automates CI/CD deployment pipelines, secrets management, security scanning, observability, and auto-scaling for modern development teams.
       </p>
       
-      {/* Seamless Navbar without dividing border */}
+      {/* Seamless Navbar with glowing dynamic scroll progress */}
       <header className="site-nav">
+        <div className="site-nav__progress" style={{ width: `${scrollPercent}%` }} />
         <a
           className="site-brand"
           href="#top"
@@ -255,10 +354,15 @@ export default function App() {
           href="https://evolut.cloud/"
           target="_blank"
           rel="noreferrer"
+          onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
+          onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
         >
           Book a demo <span aria-hidden="true">↗</span>
         </a>
       </header>
+
+      {/* Ambient background glow orb */}
+      <div className="ambient-glow-orb" aria-hidden="true" />
 
       {/* Hero Initial Screen — Completely removed as soon as scroll begins */}
       <div
@@ -276,9 +380,9 @@ export default function App() {
             </div>
 
             <h1 className="hero-title">
-              Ship fast.<br />
-              Ship secure.<br />
-              <span className="hero-title__highlight">Ship always.</span>
+              <span className="hero-title-line">Ship fast.</span>
+              <span className="hero-title-line">Ship secure.</span>
+              <span className="hero-title-line hero-title__highlight">Ship always.</span>
             </h1>
 
             <p className="hero-subtitle">
@@ -291,6 +395,8 @@ export default function App() {
                 href="https://evolut.cloud/"
                 target="_blank"
                 rel="noreferrer"
+                onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.05, translateY: -2, duration: 220, ease: 'outBack' })}
+                onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, translateY: 0, duration: 300, ease: 'outQuad' })}
               >
                 BOOK A FREE DEMO
               </a>
@@ -328,6 +434,20 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Minimalist Floating Scroll Indicator */}
+        <div
+          className="scroll-indicator"
+          onClick={(e) => navigateToProgress(e, portalTarget(0))}
+          role="button"
+          tabIndex={0}
+          aria-label="Scroll to explore architecture"
+        >
+          <span className="scroll-indicator__text">SCROLL TO EXPLORE ARCHITECTURE</span>
+          <div className="scroll-indicator__track">
+            <span className="scroll-indicator__chevron">↓</span>
           </div>
         </div>
       </div>
@@ -476,13 +596,21 @@ export default function App() {
                     {section.telemetry && (
                       <div className="portal-telemetry" aria-label="Live Telemetry Signals">
                         {section.telemetry.map((item) => (
-                          <div key={item.metric} className="telemetry-card">
+                          <div
+                            key={item.metric}
+                            className="telemetry-card"
+                            onMouseEnter={(e) => animate(e.currentTarget, { translateY: -3, scale: 1.02, duration: 220, ease: 'outQuad' })}
+                            onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, scale: 1, duration: 300, ease: 'outQuad' })}
+                          >
                             <div className="telemetry-card__top">
                               <span className="telemetry-card__metric">{item.metric}</span>
                               <span className="telemetry-card__badge">{item.badge}</span>
                             </div>
                             <div className="telemetry-card__value">{item.value}</div>
                             <div className="telemetry-card__sub">{item.sub}</div>
+                            <div className="telemetry-card__bar-wrap">
+                              <div className="telemetry-card__bar-fill" data-fill={item.bar || '75%'} />
+                            </div>
                           </div>
                         ))}
                       </div>

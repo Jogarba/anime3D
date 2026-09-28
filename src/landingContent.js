@@ -76,10 +76,10 @@ export const landingSections = [
     description:
       'Dashboards, log aggregation, and alerts are provisioned automatically for every workload you deploy. Workloads scale up before users notice a slowdown, and scale down to save cost when idle.',
     telemetry: [
-      { metric: 'CPU Utilization', value: '18.4%', badge: 'Optimal', sub: 'Elastic auto-balancing' },
-      { metric: 'Memory Allocated', value: '342 MB', badge: 'Stable', sub: 'Across 4 active pods' },
-      { metric: 'Request Throughput', value: '14.2k /s', badge: 'Healthy', sub: 'p99 latency 12ms' },
-      { metric: 'Cluster Uptime', value: '99.99%', badge: 'SLA Active', sub: 'Zero packet loss' },
+      { metric: 'CPU Utilization', value: '18.4%', badge: 'Optimal', sub: 'Elastic auto-balancing', bar: '24%' },
+      { metric: 'Memory Allocated', value: '342 MB', badge: 'Stable', sub: 'Across 4 active pods', bar: '42%' },
+      { metric: 'Request Throughput', value: '14.2k /s', badge: 'Healthy', sub: 'p99 latency 12ms', bar: '78%' },
+      { metric: 'Cluster Uptime', value: '99.99%', badge: 'SLA Active', sub: 'Zero packet loss', bar: '99%' },
     ],
     details: [
       { label: 'OBSERVABILITY', text: 'Full dashboards, log aggregation, and alerts provisioned per app automatically with Prometheus & Grafana.' },
