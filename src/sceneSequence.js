@@ -1,0 +1,35 @@
+export const FIRST_PORTAL = { x: 0, y: 1.35 }
+
+export const PORTALS = [
+  { x: 1.21, y: 0.72 },
+  { x: 1.21, y: -0.67 },
+  { x: 0, y: -1.32 },
+  { x: -1.2, y: -0.67 },
+  { x: -1.2, y: 0.72 },
+]
+
+export const TURN_SCROLL_DISTANCE = 2.8
+export const FIRST_ALIGN_END = 3.2
+export const PORTAL_APPROACH_DURATION = 0.8
+export const PORTAL_CONTENT_HOLD_DURATION = 0.75
+export const BLACK_FADE_DURATION = 0.45
+export const FIRST_CROSS_END =
+  FIRST_ALIGN_END + PORTAL_APPROACH_DURATION + BLACK_FADE_DURATION
+export const FIRST_PASSAGE_END = FIRST_CROSS_END + PORTAL_CONTENT_HOLD_DURATION
+export const PASSAGE_ENTRY_Z = -0.5
+
+export const PORTAL_APPROACH_Z = 0.43
+export const RETURN_DURATION = 0.8
+export const HOME_DURATION = 0.5
+export const HOME_HOLD_DURATION = 0.3
+export const ALIGN_DURATION = 0.3
+export const CYCLE_DURATION =
+  RETURN_DURATION +
+  HOME_DURATION +
+  HOME_HOLD_DURATION +
+  ALIGN_DURATION +
+  PORTAL_APPROACH_DURATION +
+  BLACK_FADE_DURATION +
+  PORTAL_CONTENT_HOLD_DURATION
+
+export const TOTAL_SCROLL_PROGRESS = FIRST_PASSAGE_END + PORTALS.length * CYCLE_DURATION
