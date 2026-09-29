@@ -1,93 +1,336 @@
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Float, Lightformer } from '@react-three/drei'
 import * as THREE from 'three'
 import Model from './Model'
 import {
-  ALIGN_DURATION,
-  BLACK_FADE_DURATION,
-  CYCLE_DURATION,
-  FIRST_CROSS_END,
-  FIRST_ALIGN_END,
-  FIRST_PASSAGE_END,
-  FIRST_PORTAL,
-  HOME_DURATION,
-  HOME_HOLD_DURATION,
-  PORTAL_APPROACH_DURATION,
-  PORTAL_APPROACH_Z,
-  PORTAL_CONTENT_HOLD_DURATION,
-  PASSAGE_ENTRY_Z,
-  PORTALS,
-  RETURN_DURATION,
-  TURN_SCROLL_DISTANCE,
+  SECTION_COUNT,
+  INITIAL_ZOOM_DISTANCE,
+  SECTION_HOLD_DISTANCE,
+  SECTION_TRANSITION_DISTANCE,
+  SECTION_CYCLE,
+  SECTIONS_END,
+  OVERVIEW_ZOOM_OUT_START,
+  OVERVIEW_ZOOM_OUT_END,
+  OVERVIEW_HOLD_END,
+  LOGIN_ZOOM_START,
+  LOGIN_ZOOM_END,
 } from '../sceneSequence'
 
 const PORTAL_LOOK_AWAY_START = 0.96
 
+function AmbientParticles({ count = 130 }) {
+  const points = useRef(null)
+  const geom = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    const arr = new Float32Array(count * 3)
+    for (let i = 0; i < count; i++) {
+      arr[i * 3] = (Math.random() - 0.5) * 8.5
+      arr[i * 3 + 1] = (Math.random() - 0.5) * 6.5
+      arr[i * 3 + 2] = (Math.random() - 0.5) * 5.5
+    }
+    g.setAttribute('position', new THREE.BufferAttribute(arr, 3))
+    return g
+  }, [count])
+
+  useFrame((state) => {
+    if (!points.current) return
+    const t = state.clock.getElapsedTime() * 0.16
+    points.current.rotation.y = t * 0.35
+    points.current.rotation.x = Math.sin(t * 0.25) * 0.12
+  })
+
+  return (
+    <points ref={points} geometry={geom}>
+      <pointsMaterial
+        size={0.042}
+        color="#bae6fd"
+        transparent
+        opacity={0.55}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  )
+}
+
+function WaterParticleRipples() {
+  const pointsRef = useRef(null)
+  const particleCount = 120
+
+  const particleData = useMemo(() => {
+    const pos = new Float32Array(particleCount * 3)
+    const waves = []
+
+    for (let ring = 0; ring < 3; ring++) {
+      const countPerRing = 40
+      for (let i = 0; i < countPerRing; i++) {
+        const idx = ring * countPerRing + i
+        const angle = (i / countPerRing) * Math.PI * 2 + (Math.random() - 0.5) * 0.15
+        waves.push({
+          ring,
+          angle,
+          radius: 0,
+          speed: 1.15 - ring * 0.18,
+          delay: ring * 0.25,
+          zBase: (Math.random() - 0.5) * 0.2,
+          active: false,
+        })
+        pos[idx * 3] = 0
+        pos[idx * 3 + 1] = 0
+        pos[idx * 3 + 2] = 0
+      }
+    }
+
+    const geom = new THREE.BufferGeometry()
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    return { geom, pos, waves }
+  }, [particleCount])
+
+  const anim = useRef({ active: false, time: 0, opacity: 0 })
+
+  useEffect(() => {
+    const onWindowClick = () => {
+      anim.current = { active: true, time: 0, opacity: 0.55 }
+      particleData.waves.forEach((w) => {
+        w.radius = 0.15 + (Math.random() - 0.5) * 0.05
+        w.active = true
+      })
+    }
+
+    window.addEventListener('click', onWindowClick)
+    return () => window.removeEventListener('click', onWindowClick)
+  }, [particleData])
+
+  useFrame((state, delta) => {
+    if (!pointsRef.current) return
+    if (!anim.current.active) return
+
+    anim.current.time += delta
+    anim.current.opacity -= delta * 0.22
+
+    if (anim.current.opacity <= 0.005) {
+      anim.current.active = false
+      pointsRef.current.visible = false
+      return
+    }
+
+    pointsRef.current.visible = true
+    const { pos, waves, geom } = particleData
+    const t = anim.current.time
+
+    waves.forEach((w, i) => {
+      if (t < w.delay) {
+        pos[i * 3] = 0
+        pos[i * 3 + 1] = 0
+        pos[i * 3 + 2] = 0
+        return
+      }
+
+      const activeTime = t - w.delay
+      w.radius += delta * w.speed
+      const undulation = Math.sin(activeTime * 3.5 + w.angle * 2) * 0.04
+
+      pos[i * 3] = Math.cos(w.angle) * w.radius
+      pos[i * 3 + 1] = Math.sin(w.angle) * w.radius
+      pos[i * 3 + 2] = w.zBase + undulation
+    })
+
+    geom.attributes.position.needsUpdate = true
+
+    if (pointsRef.current.material) {
+      pointsRef.current.material.opacity = Math.max(0, anim.current.opacity)
+    }
+  })
+
+  return (
+    <points ref={pointsRef} geometry={particleData.geom} visible={false}>
+      <pointsMaterial
+        size={0.038}
+        color="#7dd3fc"
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  )
+}
+
+function CursorLight({ progress }) {
+  const lightRef = useRef(null)
+
+  useFrame((state) => {
+    if (!lightRef.current) return
+    const pointer = state.pointer || { x: 0, y: 0 }
+    lightRef.current.position.x = THREE.MathUtils.damp(lightRef.current.position.x, pointer.x * 5, 3.5, 0.016)
+    lightRef.current.position.y = THREE.MathUtils.damp(lightRef.current.position.y, pointer.y * 3.8, 3.5, 0.016)
+    lightRef.current.intensity = 2.6
+  })
+
+  return <pointLight ref={lightRef} position={[0, 0, 3.8]} color="#60a5fa" distance={12} decay={1.8} />
+}
+
 function AnimatedModel({ progress }) {
   const group = useRef(null)
+  const clickWave = useRef({ active: false, time: 0 })
+  const prevPointer = useRef({ x: 0, y: 0 })
+  const pointerVelocity = useRef({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const onWindowClick = () => {
+      clickWave.current = { active: true, time: 0 }
+    }
+    window.addEventListener('click', onWindowClick)
+    return () => window.removeEventListener('click', onWindowClick)
+  }, [])
 
   useFrame((state, delta) => {
     if (!group.current) return
-    const turnProgress = THREE.MathUtils.clamp(progress.current / TURN_SCROLL_DISTANCE, 0, 1)
-    const heroFactor = 1 - turnProgress
+    const p = progress.current
     const time = state.clock.getElapsedTime()
 
-    // 1. Multi-frequency non-repeating organic drift (simulating natural floating in fluid/air)
-    const driftY = (Math.sin(time * 0.75) * 0.09 + Math.sin(time * 1.63 + 1.2) * 0.045 + Math.sin(time * 2.87) * 0.018) * heroFactor
-    const driftX = (Math.cos(time * 0.62) * 0.07 + Math.cos(time * 1.41 + 2.3) * 0.035 + Math.sin(time * 2.33) * 0.015) * heroFactor
-    const driftZ = (Math.sin(time * 0.53 + 0.7) * 0.05 + Math.cos(time * 1.19) * 0.02) * heroFactor
+    // heroFactor: 1 on Hero and Overview, 0 during sections
+    let heroFactor = 0
+    if (p < INITIAL_ZOOM_DISTANCE) {
+      heroFactor = 1 - THREE.MathUtils.clamp(p / (INITIAL_ZOOM_DISTANCE * 0.7), 0, 1)
+    } else if (p >= OVERVIEW_ZOOM_OUT_START) {
+      heroFactor = THREE.MathUtils.smoothstep(p, OVERVIEW_ZOOM_OUT_START, OVERVIEW_ZOOM_OUT_END)
+    }
 
-    // 2. Subtle living "breathing" micro-pulse
-    const breath = (Math.sin(time * 1.25) * 0.016 + Math.sin(time * 2.5 + 0.8) * 0.005) * heroFactor
+    // Motion factor: 1.0 everywhere, but smoothly limits motion to ~0.06 only during the login form
+    let motionFactor = 1.0
+    if (p >= LOGIN_ZOOM_START) {
+      const loginProgress = THREE.MathUtils.smoothstep(p, LOGIN_ZOOM_START, LOGIN_ZOOM_END)
+      motionFactor = THREE.MathUtils.lerp(1.0, 0.06, loginProgress)
+    }
 
-    // 3. Subtle cursor awareness (the entity naturally gazes towards the user's mouse)
+    const activeMotion = heroFactor * motionFactor
+
+    // 1. Cursor velocity momentum
     const pointer = state.pointer || { x: 0, y: 0 }
-    const mouseLookY = pointer.x * 0.26 * heroFactor
-    const mouseLookX = -pointer.y * 0.20 * heroFactor
-    const mouseShiftX = pointer.x * 0.12 * heroFactor
-    const mouseShiftY = pointer.y * 0.08 * heroFactor
+    const vx = (pointer.x - prevPointer.current.x) / Math.max(delta, 0.001)
+    const vy = (pointer.y - prevPointer.current.y) / Math.max(delta, 0.001)
+    prevPointer.current.x = pointer.x
+    prevPointer.current.y = pointer.y
 
-    // 4. Natural bio-organic rotational wobble (pitch, yaw, roll)
-    const bioTiltX = (Math.sin(time * 0.92) * 0.07 + Math.cos(time * 1.83) * 0.03) * heroFactor
-    const bioTiltY = (Math.cos(time * 0.78) * 0.10 + Math.sin(time * 1.54) * 0.035) * heroFactor
-    const bioTiltZ = (Math.sin(time * 0.65) * 0.045 + Math.cos(time * 1.37) * 0.02) * heroFactor
+    pointerVelocity.current.x = THREE.MathUtils.damp(pointerVelocity.current.x, vx, 4.0, delta)
+    pointerVelocity.current.y = THREE.MathUtils.damp(pointerVelocity.current.y, vy, 4.0, delta)
 
-    // 5. Dynamic scale: compact on Hero (0.42), expands to 1.0 upon scroll + breathing pulse
-    const baseScale = THREE.MathUtils.lerp(0.42, 1.0, THREE.MathUtils.smoothstep(turnProgress, 0, 0.85))
-    const targetScale = baseScale + breath
-    const currentScale = group.current.scale.x || 0.42
-    const smoothedScale = THREE.MathUtils.damp(currentScale, targetScale, 4.0, delta)
+    // 2. Water wave impulse on click
+    let waterBobY = 0
+    let waterBobRotX = 0
+    let waterBobScale = 0
+    if (clickWave.current.active) {
+      clickWave.current.time += delta
+      const t = clickWave.current.time
+      const decay = Math.exp(-t * 1.6)
+      waterBobY = Math.sin(t * 4.8) * 0.07 * decay * activeMotion
+      waterBobRotX = Math.cos(t * 4.2) * 0.05 * decay * activeMotion
+      waterBobScale = Math.sin(t * 5.0) * 0.025 * decay * activeMotion
+      if (t > 2.8) {
+        clickWave.current.active = false
+      }
+    }
+
+    // 3. Multi-frequency organic Lissajous float
+    const driftY = (Math.sin(time * 0.82) * 0.085 + Math.sin(time * 1.74 + 1.2) * 0.042) * activeMotion
+    const driftX = (Math.cos(time * 0.68) * 0.065 + Math.cos(time * 1.52 + 2.1) * 0.032) * activeMotion
+    const driftZ = Math.sin(time * 0.58 + 0.9) * 0.045 * activeMotion
+
+    // 4. Living breathing pulse
+    const breath = (Math.sin(time * 1.35) * 0.018 + Math.sin(time * 2.7 + 0.8) * 0.006) * Math.max(activeMotion, 0.15)
+    const pulseScale = breath + waterBobScale
+
+    // 5. Cursor gaze & velocity tilt
+    const mouseLookY = (pointer.x * 0.22 + pointerVelocity.current.x * 0.010) * activeMotion
+    const mouseLookX = (-pointer.y * 0.16 - pointerVelocity.current.y * 0.008) * activeMotion
+    const mouseShiftX = pointer.x * 0.12 * activeMotion
+    const mouseShiftY = pointer.y * 0.08 * activeMotion
+
+    // 6. Harmonic bio-rotational wobble
+    const bioTiltX = (Math.sin(time * 0.95) * 0.05 + Math.cos(time * 1.9) * 0.02) * activeMotion
+    const bioTiltY = (Math.cos(time * 0.82) * 0.06 + Math.sin(time * 1.62) * 0.025) * activeMotion
+    const bioTiltZ = (Math.sin(time * 0.72) * 0.035 + pointerVelocity.current.x * 0.012) * activeMotion
+
+    // 7. Dynamic scale: 0.92 on Hero / Overview / Login, expands to 1.0 during sections
+    let baseScale = 0.92
+    if (p < INITIAL_ZOOM_DISTANCE) {
+      baseScale = THREE.MathUtils.lerp(0.92, 1.0, THREE.MathUtils.smoothstep(p, 0, INITIAL_ZOOM_DISTANCE))
+    } else if (p < OVERVIEW_ZOOM_OUT_START) {
+      baseScale = 1.0
+    } else if (p < OVERVIEW_ZOOM_OUT_END) {
+      const zt = THREE.MathUtils.smoothstep(p, OVERVIEW_ZOOM_OUT_START, OVERVIEW_ZOOM_OUT_END)
+      baseScale = THREE.MathUtils.lerp(1.0, 0.92, zt)
+    } else {
+      baseScale = 0.92
+    }
+
+    const targetScale = Math.max(0.2, baseScale + pulseScale)
+    const currentScale = group.current.scale.x || 0.92
+    const smoothedScale = THREE.MathUtils.damp(currentScale, targetScale, 4.5, delta)
     group.current.scale.set(smoothedScale, smoothedScale, smoothedScale)
 
-    // 6. Fluid position damping
+    // 8. Fluid position damping with buoyant water bob
     const targetX = driftX + mouseShiftX
-    const targetY = driftY + mouseShiftY
+    const targetY = driftY + mouseShiftY + waterBobY
     const targetZ = driftZ
-    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, targetX, 3.2, delta)
-    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, targetY, 3.2, delta)
-    group.current.position.z = THREE.MathUtils.damp(group.current.position.z, targetZ, 3.0, delta)
+    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, targetX, 3.4, delta)
+    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, targetY, 3.4, delta)
+    group.current.position.z = THREE.MathUtils.damp(group.current.position.z, targetZ, 3.2, delta)
 
-    // 7. Fluid rotation damping: combines scroll spin on Z with living tilt and mouse tracking
-    const scrollRotZ = -turnProgress * Math.PI * 2
-    const targetRotX = mouseLookX + bioTiltX
-    const targetRotY = mouseLookY + bioTiltY
+    // 9. Exact rotation on Z per hexagon station & initial turn on Y
+    let scrollRotZ = 0
+    let initialTurnY = 0
+
+    if (p < INITIAL_ZOOM_DISTANCE) {
+      const initialTurnFactor = THREE.MathUtils.smoothstep(p, 0, INITIAL_ZOOM_DISTANCE * 0.7)
+      initialTurnY = initialTurnFactor * Math.PI
+      scrollRotZ = 0
+    } else if (p < OVERVIEW_ZOOM_OUT_START) {
+      initialTurnY = Math.PI
+      const sectionOffset = p - INITIAL_ZOOM_DISTANCE
+      const cycleIndex = Math.floor(sectionOffset / SECTION_CYCLE)
+      const inCycle = sectionOffset - cycleIndex * SECTION_CYCLE
+
+      if (cycleIndex >= SECTION_COUNT - 1) {
+        // Last section station (Section 06 / -300deg)
+        scrollRotZ = -(SECTION_COUNT - 1) * (Math.PI / 3)
+      } else if (inCycle <= SECTION_HOLD_DISTANCE) {
+        // Centered on active hexagon
+        scrollRotZ = -cycleIndex * (Math.PI / 3)
+      } else {
+        // Smooth rotation to next hexagon
+        const transT = (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE
+        const smoothedT = THREE.MathUtils.smoothstep(transT, 0, 1)
+        scrollRotZ = -(cycleIndex + smoothedT) * (Math.PI / 3)
+      }
+    } else if (p < OVERVIEW_ZOOM_OUT_END) {
+      const zoomOutFactor = THREE.MathUtils.smoothstep(p, OVERVIEW_ZOOM_OUT_START, OVERVIEW_ZOOM_OUT_END)
+      // Smoothly completes rotation back to front-facing upright position
+      initialTurnY = THREE.MathUtils.lerp(Math.PI, Math.PI * 2, zoomOutFactor)
+      scrollRotZ = THREE.MathUtils.lerp(-(SECTION_COUNT - 1) * (Math.PI / 3), -Math.PI * 2, zoomOutFactor)
+    } else {
+      initialTurnY = Math.PI * 2
+      scrollRotZ = -Math.PI * 2
+    }
+
+    const targetRotX = mouseLookX + bioTiltX + waterBobRotX
+    const targetRotY = initialTurnY + mouseLookY + bioTiltY
     const targetRotZ = scrollRotZ + bioTiltZ
 
-    group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRotX, 3.5, delta)
-    group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRotY, 3.5, delta)
-    group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, targetRotZ, 4.5, delta)
+    group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRotX, 3.8, delta)
+    group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRotY, 4.5, delta)
+    group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, targetRotZ, 3.0, delta)
   })
 
-  return <Model groupRef={group} />
+  return <Model groupRef={group} progress={progress} />
 }
-
-
-
 
 function ResponsiveCamera({ progress }) {
   const { camera, size } = useThree()
   const initialDistance = useRef(6)
+  const currentLookAt = useRef(new THREE.Vector3(0, 0, 0))
 
   useEffect(() => {
     const aspect = size.width / Math.max(size.height, 1)
@@ -102,7 +345,7 @@ function ResponsiveCamera({ progress }) {
     const p = progress.current
     const ease = 1 - Math.pow(0.001, delta)
     const homeZ = initialDistance.current
-    const firstCrossEnd = PORTAL_APPROACH_DURATION + BLACK_FADE_DURATION
+
     let targetX = 0
     let targetY = 0
     let targetZ = homeZ
@@ -110,102 +353,67 @@ function ResponsiveCamera({ progress }) {
     let lookAtY = 0
     let lookAtZ = 0
 
-    if (p < FIRST_ALIGN_END) {
-      const align = THREE.MathUtils.smoothstep(p, TURN_SCROLL_DISTANCE, FIRST_ALIGN_END)
-      targetX = FIRST_PORTAL.x * align
-      targetY = FIRST_PORTAL.y * align
-      lookAtX = targetX
-      lookAtY = targetY
-    } else if (p < FIRST_CROSS_END) {
-      const passageProgress = p - FIRST_ALIGN_END
-      targetX = FIRST_PORTAL.x
-      targetY = FIRST_PORTAL.y
-      lookAtX = targetX
-      lookAtY = targetY
-
-      if (passageProgress < PORTAL_APPROACH_DURATION) {
-        const approach = THREE.MathUtils.smoothstep(passageProgress, 0, PORTAL_APPROACH_DURATION)
-        targetZ = THREE.MathUtils.lerp(homeZ, PORTAL_APPROACH_Z, approach)
-      } else {
-        const crossingProgress = passageProgress - PORTAL_APPROACH_DURATION
-        const crossing = THREE.MathUtils.smoothstep(crossingProgress, 0, BLACK_FADE_DURATION)
-        const lookAway = THREE.MathUtils.smoothstep(crossing, PORTAL_LOOK_AWAY_START, 1)
-        targetZ = THREE.MathUtils.lerp(PORTAL_APPROACH_Z, PASSAGE_ENTRY_Z, crossing)
-        lookAtZ = THREE.MathUtils.lerp(0, -5.5, lookAway)
-      }
-    } else if (p < FIRST_PASSAGE_END) {
-      targetX = FIRST_PORTAL.x
-      targetY = FIRST_PORTAL.y
-      targetZ = PASSAGE_ENTRY_Z
-      lookAtX = FIRST_PORTAL.x
-      lookAtY = FIRST_PORTAL.y
-      lookAtZ = -5.5
+    if (p < INITIAL_ZOOM_DISTANCE) {
+      // Zoom starts following the initial 180-degree flip
+      const zoomFactor = THREE.MathUtils.smoothstep(p, INITIAL_ZOOM_DISTANCE * 0.3, INITIAL_ZOOM_DISTANCE)
+      targetX = 0
+      targetY = THREE.MathUtils.lerp(0, 1.35, zoomFactor)
+      targetZ = THREE.MathUtils.lerp(homeZ, 1.85, zoomFactor)
+      lookAtX = 0
+      lookAtY = THREE.MathUtils.lerp(0, 1.35, zoomFactor)
+      lookAtZ = 0
+    } else if (p < OVERVIEW_ZOOM_OUT_START) {
+      // Steady camera view framing the top hexagon as model spins through sections
+      targetX = 0
+      targetY = 1.35
+      targetZ = 1.85
+      lookAtX = 0
+      lookAtY = 1.35
+      lookAtZ = 0
+    } else if (p < OVERVIEW_ZOOM_OUT_END) {
+      // Zoom out to overview: camera pulls back to initial full model position
+      const zoomOutFactor = THREE.MathUtils.smoothstep(p, OVERVIEW_ZOOM_OUT_START, OVERVIEW_ZOOM_OUT_END)
+      targetX = 0
+      targetY = THREE.MathUtils.lerp(1.35, 0, zoomOutFactor)
+      targetZ = THREE.MathUtils.lerp(1.85, homeZ, zoomOutFactor)
+      lookAtX = 0
+      lookAtY = THREE.MathUtils.lerp(1.35, 0, zoomOutFactor)
+      lookAtZ = 0
+    } else if (p < LOGIN_ZOOM_START) {
+      // Hold overview view: full model visible in initial state
+      targetX = 0
+      targetY = 0
+      targetZ = homeZ
+      lookAtX = 0
+      lookAtY = 0
+      lookAtZ = 0
+    } else if (p < LOGIN_ZOOM_END) {
+      // Zoom deeply into the CENTER core of the 3D model
+      const loginZoomFactor = THREE.MathUtils.smoothstep(p, LOGIN_ZOOM_START, LOGIN_ZOOM_END)
+      targetX = 0
+      targetY = 0
+      targetZ = THREE.MathUtils.lerp(homeZ, 1.35, loginZoomFactor)
+      lookAtX = 0
+      lookAtY = 0
+      lookAtZ = 0
     } else {
-      const cycleIndex = Math.min(PORTALS.length - 1, Math.floor((p - FIRST_PASSAGE_END) / CYCLE_DURATION))
-      const cycleStart = FIRST_PASSAGE_END + cycleIndex * CYCLE_DURATION
-      const cycleProgress = p - cycleStart
-      const previousPortal = cycleIndex === 0 ? FIRST_PORTAL : PORTALS[cycleIndex - 1]
-      const portal = PORTALS[cycleIndex]
-      const homeEnd = RETURN_DURATION + HOME_DURATION
-      const holdEnd = homeEnd + HOME_HOLD_DURATION
-      const alignEnd = holdEnd + ALIGN_DURATION
-
-      if (cycleProgress < RETURN_DURATION) {
-        const retreat = THREE.MathUtils.smoothstep(cycleProgress, 0, RETURN_DURATION)
-        targetX = previousPortal.x
-        targetY = previousPortal.y
-        targetZ = THREE.MathUtils.lerp(PASSAGE_ENTRY_Z, homeZ, retreat)
-        lookAtX = targetX
-        lookAtY = targetY
-        lookAtZ = THREE.MathUtils.lerp(-5.5, 0, retreat)
-      } else if (cycleProgress < homeEnd) {
-        const home = THREE.MathUtils.smoothstep(cycleProgress, RETURN_DURATION, homeEnd)
-        targetX = THREE.MathUtils.lerp(previousPortal.x, 0, home)
-        targetY = THREE.MathUtils.lerp(previousPortal.y, 0, home)
-        lookAtX = targetX
-        lookAtY = targetY
-      } else if (cycleProgress < holdEnd) {
-        targetX = 0
-        targetY = 0
-        lookAtX = 0
-        lookAtY = 0
-      } else if (cycleProgress < alignEnd) {
-        const align = THREE.MathUtils.smoothstep(cycleProgress, holdEnd, alignEnd)
-        targetX = portal.x * align
-        targetY = portal.y * align
-        lookAtX = targetX
-        lookAtY = targetY
-      } else if (cycleProgress < CYCLE_DURATION - PORTAL_CONTENT_HOLD_DURATION) {
-        const passageProgress = cycleProgress - alignEnd
-        targetX = portal.x
-        targetY = portal.y
-        lookAtX = targetX
-        lookAtY = targetY
-
-        if (passageProgress < PORTAL_APPROACH_DURATION) {
-          const approach = THREE.MathUtils.smoothstep(passageProgress, 0, PORTAL_APPROACH_DURATION)
-          targetZ = THREE.MathUtils.lerp(homeZ, PORTAL_APPROACH_Z, approach)
-        } else {
-          const crossingProgress = passageProgress - PORTAL_APPROACH_DURATION
-          const crossing = THREE.MathUtils.smoothstep(crossingProgress, 0, BLACK_FADE_DURATION)
-          const lookAway = THREE.MathUtils.smoothstep(crossing, PORTAL_LOOK_AWAY_START, 1)
-          targetZ = THREE.MathUtils.lerp(PORTAL_APPROACH_Z, PASSAGE_ENTRY_Z, crossing)
-          lookAtZ = THREE.MathUtils.lerp(0, -5.5, lookAway)
-        }
-      } else {
-        targetX = portal.x
-        targetY = portal.y
-        targetZ = PASSAGE_ENTRY_Z
-        lookAtX = portal.x
-        lookAtY = portal.y
-        lookAtZ = -5.5
-      }
+      // Login section: close-up immersive center of the 3D model
+      targetX = 0
+      targetY = 0
+      targetZ = 1.35
+      lookAtX = 0
+      lookAtY = 0
+      lookAtZ = 0
     }
 
     camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, ease)
     camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetY, ease)
     camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, ease)
-    camera.lookAt(lookAtX, lookAtY, lookAtZ)
+
+    currentLookAt.current.x = THREE.MathUtils.lerp(currentLookAt.current.x, lookAtX, ease)
+    currentLookAt.current.y = THREE.MathUtils.lerp(currentLookAt.current.y, lookAtY, ease)
+    currentLookAt.current.z = THREE.MathUtils.lerp(currentLookAt.current.z, lookAtZ, ease)
+    camera.lookAt(currentLookAt.current.x, currentLookAt.current.y, currentLookAt.current.z)
   })
 
   return null
@@ -239,8 +447,11 @@ export default function Scene({ progress }) {
         <ambientLight intensity={0.65} />
         <directionalLight position={[4, 5, 6]} intensity={2.2} />
         <pointLight position={[-4, 1, 3]} intensity={1.4} />
+        <CursorLight progress={progress} />
         <Suspense fallback={null}>
           <AnimatedModel progress={progress} />
+          <WaterParticleRipples />
+          <AmbientParticles />
           <OfflineEnvironment />
           <ContactShadows position={[0, -2.2, 0]} opacity={0.24} scale={8} blur={2.8} far={5} />
         </Suspense>

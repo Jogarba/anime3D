@@ -3,21 +3,22 @@ import { createTimeline, animate, stagger } from 'animejs'
 import Scene from './components/Scene'
 import Loader from './components/Loader'
 import ErrorBoundary from './components/ErrorBoundary'
+import KineticGrid from './components/KineticGrid'
 import { landingSections } from './landingContent'
+import LiquidGlassOrb from './components/LiquidGlassOrb'
+import LoginForm from './components/LoginForm'
 import {
-  ALIGN_DURATION,
-  BLACK_FADE_DURATION,
-  FIRST_CROSS_END,
-  FIRST_PASSAGE_END,
-  FIRST_ALIGN_END,
-  HOME_DURATION,
-  HOME_HOLD_DURATION,
-  PORTAL_APPROACH_DURATION,
-  PORTAL_CONTENT_HOLD_DURATION,
-  PORTALS,
-  RETURN_DURATION,
+  SECTION_COUNT,
+  INITIAL_ZOOM_DISTANCE,
+  SECTION_HOLD_DISTANCE,
+  SECTION_TRANSITION_DISTANCE,
+  SECTION_CYCLE,
   TOTAL_SCROLL_PROGRESS,
-  CYCLE_DURATION,
+  ZOOM_OUT_START,
+  LOGIN_ZOOM_START,
+  LOGIN_ZOOM_END,
+  getPortalTarget,
+  getLoginTarget,
 } from './sceneSequence'
 
 const SCROLL_UNIT_MS = 1000
@@ -28,54 +29,110 @@ const easeInOut = (value) => {
 }
 
 function portalAtProgress(progress) {
-  if (progress >= FIRST_CROSS_END && progress < FIRST_PASSAGE_END) {
+  // During hero banner (progress 0 to 0.15), hide section text
+  if (progress < 0.15) {
+    return { index: -1, opacity: 0 }
+  }
+
+  // During first zoom (0.15 to INITIAL_ZOOM_DISTANCE):
+  // Section 0 fades in as camera arrives at the first hexagon
+  if (progress < INITIAL_ZOOM_DISTANCE) {
+    const zoomProgress = (progress - 0.15) / (INITIAL_ZOOM_DISTANCE - 0.15)
     return {
       index: 0,
-      opacity: easeInOut((progress - FIRST_CROSS_END) / 0.14),
+      opacity: clamp01(easeInOut(zoomProgress)),
     }
   }
 
-  if (progress < FIRST_PASSAGE_END) return { index: -1, opacity: 0 }
+  // Once zoomed in: 6 sections (0 to 5)
+  const offset = progress - INITIAL_ZOOM_DISTANCE
+  const rawCycle = offset / SECTION_CYCLE
+  const sectionIndex = Math.min(SECTION_COUNT - 1, Math.floor(rawCycle))
+  const inCycle = offset - sectionIndex * SECTION_CYCLE
 
-  const cycleIndex = Math.floor((progress - FIRST_PASSAGE_END) / CYCLE_DURATION)
-  if (cycleIndex < 0 || cycleIndex >= PORTALS.length) return { index: -1, opacity: 0 }
+  // Past the end of section cycle (zoom out / login / footer area): completely hidden
+  if (progress >= ZOOM_OUT_START) {
+    return { index: -1, opacity: 0 }
+  }
 
-  const cycleStart = FIRST_PASSAGE_END + cycleIndex * CYCLE_DURATION
-  const cycleProgress = progress - cycleStart
-  const returnEnd = RETURN_DURATION + HOME_DURATION
-  const nextPageStart = cycleStart + CYCLE_DURATION - PORTAL_CONTENT_HOLD_DURATION
-
-  if (cycleProgress < returnEnd) {
+  // Last section (Section 06 Business Case)
+  if (sectionIndex >= SECTION_COUNT - 1) {
+    if (inCycle <= SECTION_HOLD_DISTANCE) {
+      return { index: SECTION_COUNT - 1, opacity: 1 }
+    }
+    const exitT = (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE
+    if (exitT >= 1) {
+      return { index: -1, opacity: 0 }
+    }
     return {
-      index: cycleIndex,
-      opacity: 1 - easeInOut(cycleProgress / 0.22),
+      index: SECTION_COUNT - 1,
+      opacity: clamp01(1 - easeInOut(exitT)),
     }
   }
 
-  if (progress < nextPageStart) return { index: -1, opacity: 0 }
-
-  return {
-    index: cycleIndex + 1,
-    opacity: easeInOut((progress - nextPageStart) / 0.14),
+  // Section hold period: Hexagon is centered and section is 100% visible!
+  if (inCycle <= SECTION_HOLD_DISTANCE) {
+    return {
+      index: sectionIndex,
+      opacity: 1,
+    }
   }
+
+  // Transition period between hexagons: smooth crossfade
+  const transT = (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE
+  if (transT < 0.5) {
+    return {
+      index: sectionIndex,
+      opacity: clamp01(1 - easeInOut(transT * 2)),
+    }
+  } else {
+    return {
+      index: sectionIndex + 1,
+      opacity: clamp01(easeInOut((transT - 0.5) * 2)),
+    }
+  }
+}
+
+function TypewriterText({ text, className = '' }) {
+  return <span className={className}>{text}</span>
+}
+
+function TerminalTypewriterLine({ icon = '✓', text, colorClass = '', timeText = '' }) {
+  return (
+    <div className={`t-log ${colorClass}`}>
+      <span className="log-icon">{icon}</span>
+      <span>
+        {text}
+        {timeText && <span className="log-time"> {timeText}</span>}
+      </span>
+    </div>
+  )
 }
 
 export default function App() {
   const progress = useRef(0)
   const activePortalRef = useRef(-1)
   const heroVisibleRef = useRef(true)
+  const loginVisibleRef = useRef(false)
   const [activePortal, setActivePortal] = useState(-1)
   const [heroVisible, setHeroVisible] = useState(true)
+  const [loginOpacity, setLoginOpacity] = useState(0)
+  const [loginVisible, setLoginVisible] = useState(false)
   const [scrollPercent, setScrollPercent] = useState(0)
+  const [copied, setCopied] = useState(false)
+
+  const copyInstallCommand = () => {
+    navigator.clipboard?.writeText('npm i -g @evolut/cli')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2400)
+  }
 
   const navigateToProgress = (event, target) => {
     event.preventDefault()
     window.scrollTo({ top: target * window.innerHeight, behavior: 'smooth' })
   }
   const portalTarget = (index) => {
-    if (index === 0) return FIRST_CROSS_END + 0.18
-    const cycleStart = FIRST_PASSAGE_END + (index - 1) * CYCLE_DURATION
-    return cycleStart + CYCLE_DURATION - PORTAL_CONTENT_HOLD_DURATION + 0.18
+    return getPortalTarget(index)
   }
 
   // Anime.js initial hero entrance animation on page load
@@ -92,45 +149,25 @@ export default function App() {
       translateY: [-18, 0],
       duration: 600,
     }, '-=400')
-    .add('.hero-title-line', {
-      opacity: [0, 1],
-      translateY: [32, 0],
-      duration: 750,
-      delay: stagger(100),
-    }, '-=350')
-    .add('.hero-subtitle', {
-      opacity: [0, 1],
-      translateY: [20, 0],
-      duration: 650,
-    }, '-=400')
-    .add('.hero-cta-wrap', {
+    .add('.hero-cta-wrap > *', {
       opacity: [0, 1],
       scale: [0.92, 1],
       duration: 600,
-    }, '-=350')
+      delay: stagger(80),
+    }, '+=400')
     .add('.hero-stats-bar > *', {
       opacity: [0, 1],
       translateY: [14, 0],
       duration: 500,
       delay: stagger(60),
     }, '-=300')
-    .add('.hero-terminal', {
+    .add('.hero-right-card', {
       opacity: [0, 1],
-      translateY: [28, 0],
+      translateY: [24, 0],
       scale: [0.96, 1],
-      duration: 800,
-    }, '-=650')
-    .add('.hero-terminal__body .t-log', {
-      opacity: [0, 1],
-      translateX: [-12, 0],
-      duration: 400,
-      delay: stagger(90),
-    }, '-=400')
-    .add('.scroll-indicator', {
-      opacity: [0, 1],
-      translateY: [12, 0],
       duration: 700,
-    }, '-=200')
+      delay: stagger(140),
+    }, '-=600')
 
     // Continuous ambient glow pulse
     animate('.ambient-glow-orb', {
@@ -139,14 +176,6 @@ export default function App() {
       duration: 7000,
       loop: true,
       ease: 'inOutSine',
-    })
-
-    // Scroll indicator floating bounce
-    animate('.scroll-indicator__chevron', {
-      translateY: [0, 7, 0],
-      duration: 1800,
-      loop: true,
-      ease: 'inOutQuad',
     })
   }, [])
 
@@ -196,47 +225,7 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement
-    const blackout = { opacity: 0 }
-    const applyBlackout = () => root.style.setProperty('--blackout-opacity', blackout.opacity)
-
-    const timeline = createTimeline({ autoplay: false, onUpdate: applyBlackout })
-    timeline.add(blackout, {
-      opacity: 0,
-      duration: (FIRST_CROSS_END - BLACK_FADE_DURATION) * SCROLL_UNIT_MS,
-    })
-    timeline.add(blackout, {
-      opacity: [0, 1],
-      duration: BLACK_FADE_DURATION * SCROLL_UNIT_MS,
-      ease: 'inOutSine',
-    })
-    timeline.add(blackout, {
-      opacity: 1,
-      duration: PORTAL_CONTENT_HOLD_DURATION * SCROLL_UNIT_MS,
-    })
-
-    const returnToHomeMs = (RETURN_DURATION + HOME_DURATION) * SCROLL_UNIT_MS
-    const modelTravelMs =
-      (HOME_HOLD_DURATION + ALIGN_DURATION + PORTAL_APPROACH_DURATION) * SCROLL_UNIT_MS
-
-    for (let i = 0; i < PORTALS.length; i++) {
-      timeline.add(blackout, {
-        opacity: [1, 0],
-        duration: returnToHomeMs,
-        ease: 'inOutSine',
-      })
-      timeline.add(blackout, { opacity: 0, duration: modelTravelMs })
-      timeline.add(blackout, {
-        opacity: [0, 1],
-        duration: BLACK_FADE_DURATION * SCROLL_UNIT_MS,
-        ease: 'inOutSine',
-      })
-      timeline.add(blackout, {
-        opacity: 1,
-        duration: PORTAL_CONTENT_HOLD_DURATION * SCROLL_UNIT_MS,
-      })
-    }
-
-    timeline.pause()
+    root.style.setProperty('--blackout-opacity', '0')
 
     let raw = 0
     let frame = 0
@@ -244,8 +233,6 @@ export default function App() {
 
     const apply = () => {
       const currentProgress = Math.min(progress.current, TOTAL_SCROLL_PROGRESS)
-      timeline.seek(currentProgress * SCROLL_UNIT_MS)
-      applyBlackout()
       const active = portalAtProgress(currentProgress)
       if (activePortalRef.current !== active.index) {
         activePortalRef.current = active.index
@@ -270,12 +257,21 @@ export default function App() {
         setHeroVisible(isHeroVisible)
       }
 
-      // Footer only starts fading in after reaching the dedicated end of the scroll
-      const footerProgress = (progress.current - TOTAL_SCROLL_PROGRESS - 0.2) / 0.45
-      root.style.setProperty(
-        '--footer-opacity',
-        String(clamp01(footerProgress)),
-      )
+      // Login form fades in as camera zooms into the center of the 3D model
+      let curLoginOpacity = 0
+      if (progress.current >= LOGIN_ZOOM_START) {
+        if (progress.current < LOGIN_ZOOM_END) {
+          curLoginOpacity = clamp01(easeInOut((progress.current - LOGIN_ZOOM_START) / (LOGIN_ZOOM_END - LOGIN_ZOOM_START)))
+        } else {
+          curLoginOpacity = 1
+        }
+      }
+      setLoginOpacity(curLoginOpacity)
+      const isLoginVis = curLoginOpacity > 0.01
+      if (isLoginVis !== loginVisibleRef.current) {
+        loginVisibleRef.current = isLoginVis
+        setLoginVisible(isLoginVis)
+      }
     }
 
     const loop = (now) => {
@@ -311,7 +307,6 @@ export default function App() {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
       if (frame) cancelAnimationFrame(frame)
-      timeline.revert()
       root.style.removeProperty('--blackout-opacity')
       root.style.removeProperty('--portal-content-opacity')
       root.style.removeProperty('--hero-opacity')
@@ -320,10 +315,11 @@ export default function App() {
   }, [])
 
   return (
+    <>
     <main
       id="top"
       className="model-view"
-      style={{ '--scroll-height': `${(TOTAL_SCROLL_PROGRESS + 1.85) * 100}dvh` }}
+      style={{ '--scroll-height': `${(TOTAL_SCROLL_PROGRESS + 0.6) * 100}dvh` }}
     >
       <h1 className="visually-hidden">Evolut — Kubernetes Application Platform</h1>
       <p className="visually-hidden">
@@ -339,7 +335,8 @@ export default function App() {
           onClick={(event) => navigateToProgress(event, 0)}
           aria-label="Evolut, home"
         >
-          EVOLUT<span>®</span>
+          <img src="/assets/logo-nobg.png" alt="Evolut Logo" className="site-brand__logo" />
+          <span>EVOLUT</span>
         </a>
         <nav aria-label="Main navigation">
           <a href="#pipeline" onClick={(event) => navigateToProgress(event, portalTarget(0))}>Pipeline</a>
@@ -348,6 +345,7 @@ export default function App() {
           <a href="#security" onClick={(event) => navigateToProgress(event, portalTarget(3))}>Security</a>
           <a href="#operations" onClick={(event) => navigateToProgress(event, portalTarget(4))}>Observability</a>
           <a href="#business-case" onClick={(event) => navigateToProgress(event, portalTarget(5))}>Business Case</a>
+          <a href="#login" onClick={(event) => navigateToProgress(event, getLoginTarget())}>Console</a>
         </nav>
         <a
           className="site-nav__cta"
@@ -361,286 +359,22 @@ export default function App() {
         </a>
       </header>
 
+      {/* Permanent Fixed Background Hex Pattern for ALL pages */}
+      <div className="site-hex-grid" aria-hidden="true" />
+
+      {/* Kinetic Wave Matrix Canvas for ALL pages */}
+      <KineticGrid />
+
       {/* Ambient background glow orb */}
       <div className="ambient-glow-orb" aria-hidden="true" />
 
-      {/* Hero Initial Screen — Completely removed as soon as scroll begins */}
+      {/* Hero Initial Screen — Clean view with only the 3D Model and Space Background */}
       <div
         className={`hero-view${!heroVisible ? ' hero-view--hidden' : ''}`}
         hidden={!heroVisible}
         aria-hidden={!heroVisible}
         aria-label="Hero banner"
-      >
-        <div className="hero-hex-grid" aria-hidden="true" />
-        <div className="hero-container">
-          <div className="hero-left">
-            <div className="hero-badge">
-              <span className="hero-badge__dot" />
-              AUTOMATED INFRASTRUCTURE PLATFORM
-            </div>
-
-            <h1 className="hero-title">
-              <span className="hero-title-line">Ship fast.</span>
-              <span className="hero-title-line">Ship secure.</span>
-              <span className="hero-title-line hero-title__highlight">Ship always.</span>
-            </h1>
-
-            <p className="hero-subtitle">
-              Your team writes code. We handle everything from deployment pipelines to secrets, monitoring, and scaling — automatically, on every push.
-            </p>
-
-            <div className="hero-cta-wrap">
-              <a
-                className="hero-cta-btn"
-                href="https://evolut.cloud/"
-                target="_blank"
-                rel="noreferrer"
-                onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.05, translateY: -2, duration: 220, ease: 'outBack' })}
-                onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, translateY: 0, duration: 300, ease: 'outQuad' })}
-              >
-                BOOK A FREE DEMO
-              </a>
-            </div>
-
-            <div className="hero-stats-bar">
-              <span><strong>&lt; 60s</strong> to first deploy</span>
-              <span className="hero-stats-sep">·</span>
-              <span><strong>99.99%</strong> uptime SLA</span>
-              <span className="hero-stats-sep">·</span>
-              <span><strong>40%</strong> cost reduction</span>
-            </div>
-          </div>
-
-          <div className="hero-right">
-            <div className="hero-terminal">
-              <div className="hero-terminal__header">
-                <div className="hero-terminal__dots">
-                  <span className="t-dot t-dot--red" />
-                  <span className="t-dot t-dot--yellow" />
-                  <span className="t-dot t-dot--green" />
-                </div>
-                <span className="hero-terminal__title">evolut — deployment pipeline</span>
-              </div>
-              <div className="hero-terminal__body">
-                <p className="hero-terminal__cmd">$ git push origin main</p>
-                <div className="hero-terminal__logs">
-                  <p className="t-log t-log--green">✓ Build passed (42s)</p>
-                  <p className="t-log t-log--green">✓ Image pushed to registry</p>
-                  <p className="t-log t-log--cyan">✓ Dev environment synced</p>
-                  <p className="t-log t-log--cyan">✓ QA ready › qa.yourapp.com</p>
-                  <p className="t-log t-log--green">✓ Certificates renewed</p>
-                  <p className="t-log t-log--green">✓ Secrets rotated automatically</p>
-                  <p className="t-log t-log--live">● Live 99.99% uptime</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Minimalist Floating Scroll Indicator */}
-        <div
-          className="scroll-indicator"
-          onClick={(e) => navigateToProgress(e, portalTarget(0))}
-          role="button"
-          tabIndex={0}
-          aria-label="Scroll to explore architecture"
-        >
-          <span className="scroll-indicator__text">SCROLL TO EXPLORE ARCHITECTURE</span>
-          <div className="scroll-indicator__track">
-            <span className="scroll-indicator__chevron">↓</span>
-          </div>
-        </div>
-      </div>
-
-
-      <div className="portal-content" aria-live="polite">
-
-        {landingSections.map((section, index) => {
-          const active = activePortal === index
-          const isBusinessCase = section.id === 'business-case'
-
-          return (
-            <section
-              key={section.id}
-              id={section.id}
-              className={`portal-panel${active ? ' portal-panel--active' : ''}${isBusinessCase ? ' portal-panel--wide' : ''}`}
-              aria-labelledby={`${section.id}-title`}
-              aria-hidden={!active}
-              hidden={!active}
-            >
-              <div className={`portal-panel__inner${isBusinessCase ? ' portal-panel__inner--2col' : ''}`}>
-                {isBusinessCase ? (
-                  <>
-                    <div className="portal-panel__left">
-                      <p className="portal-panel__eyebrow">
-                        <span>{section.number}</span> / {section.eyebrow}
-                      </p>
-                      <h2 id={`${section.id}-title`}>{section.title}</h2>
-                      <p className="portal-panel__description">{section.description}</p>
-
-                      {section.stats && (
-                        <dl className="portal-stats portal-stats--2x2">
-                          {section.stats.map((stat) => (
-                            <div key={stat.label}>
-                              <dt>{stat.value}</dt>
-                              <dd>{stat.label}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      )}
-
-                      {section.costNote && <p className="portal-cost-note">{section.costNote}</p>}
-
-                      {section.cta && (
-                        <div className="portal-cta-group">
-                          <a className="portal-cta" href="https://evolut.cloud/" target="_blank" rel="noreferrer">
-                            {section.cta}<span aria-hidden="true">↗</span>
-                          </a>
-                          <span>{section.ctaNote}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="portal-panel__right">
-                      {section.comparisons && (
-                        <div className="comparison-table-wrap">
-                          <table className="comparison-table">
-                            <thead>
-                              <tr><th>Capability</th><th>Without Evolut</th><th>With Evolut</th></tr>
-                            </thead>
-                            <tbody>
-                              {section.comparisons.map(([name, without, withEvolut]) => (
-                                <tr key={name}>
-                                  <th scope="row">{name}</th>
-                                  <td>{without}</td>
-                                  <td>{withEvolut}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="portal-panel__eyebrow">
-                      <span>{section.number}</span> / {section.eyebrow}
-                    </p>
-                    <h2 id={`${section.id}-title`}>{section.title}</h2>
-                    <p className="portal-panel__description">{section.description}</p>
-
-                    {/* Interactive Terminal Widget */}
-                    {section.terminal && (
-                      <div className="terminal-preview" aria-label="Terminal Preview">
-                        <div className="terminal-header">
-                          <div className="terminal-dots">
-                            <span className="dot dot--red" />
-                            <span className="dot dot--yellow" />
-                            <span className="dot dot--green" />
-                          </div>
-                          <span className="terminal-title">bash — deploy gitops</span>
-                          <span className="terminal-status">● Live</span>
-                        </div>
-                        <div className="terminal-body">
-                          <div className="terminal-prompt-line">
-                            <span className="terminal-prompt-sign">$</span>
-                            <span className="terminal-prompt-cmd">{section.terminal.command}</span>
-                          </div>
-                          <div className="terminal-steps-list">
-                            {section.terminal.steps.map((step) => (
-                              <div key={step.label} className="terminal-step">
-                                <span className={`terminal-badge terminal-badge--${step.status}`}>
-                                  {step.label}
-                                </span>
-                                <span className="terminal-text">{step.text}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Pipeline Flow Steps */}
-                    {section.flow && (
-                      <ol className="pipeline-flow" aria-label="Pipeline stages">
-                        {section.flow.map((step, stepIndex) => (
-                          <li key={step}>
-                            {step}
-                            {stepIndex < section.flow.length - 1 && <span aria-hidden="true">›</span>}
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-
-                    {/* Environments Staging Cards */}
-                    {section.environments && (
-                      <div className="portal-environments" aria-label="Isolated Environments">
-                        {section.environments.map((env) => (
-                          <div key={env.name} className="env-card">
-                            <div className="env-card__header">
-                              <span className="env-card__name">{env.name}</span>
-                              <span className="env-card__ping">⚡ {env.ping}</span>
-                            </div>
-                            <div className="env-card__url">{env.url}</div>
-                            <div className="env-card__footer">
-                              <span className="env-card__status">● {env.status}</span>
-                              <span className="env-card__version">{env.version}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Telemetry Metrics Widget */}
-                    {section.telemetry && (
-                      <div className="portal-telemetry" aria-label="Live Telemetry Signals">
-                        {section.telemetry.map((item) => (
-                          <div
-                            key={item.metric}
-                            className="telemetry-card"
-                            onMouseEnter={(e) => animate(e.currentTarget, { translateY: -3, scale: 1.02, duration: 220, ease: 'outQuad' })}
-                            onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, scale: 1, duration: 300, ease: 'outQuad' })}
-                          >
-                            <div className="telemetry-card__top">
-                              <span className="telemetry-card__metric">{item.metric}</span>
-                              <span className="telemetry-card__badge">{item.badge}</span>
-                            </div>
-                            <div className="telemetry-card__value">{item.value}</div>
-                            <div className="telemetry-card__sub">{item.sub}</div>
-                            <div className="telemetry-card__bar-wrap">
-                              <div className="telemetry-card__bar-fill" data-fill={item.bar || '75%'} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Key Facts Pill Badges */}
-                    {section.facts && (
-                      <ul className="portal-facts">
-                        {section.facts.map((fact) => <li key={fact}>{fact}</li>)}
-                      </ul>
-                    )}
-
-                    {/* Feature Cards Grid */}
-                    {section.details && (
-                      <dl className="portal-details">
-                        {section.details.map((detail) => (
-                          <div key={detail.label}>
-                            <dt>{detail.label}</dt>
-                            <dd>{detail.text}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    )}
-                  </>
-                )}
-              </div>
-            </section>
-          )
-        })}
-      </div>
+      />
 
 
       <ErrorBoundary
@@ -656,7 +390,7 @@ export default function App() {
       <div className="blackout" aria-hidden="true" />
       <div className="scroll-track" aria-hidden="true" />
 
-      {/* Enlarged, Comprehensive Footer */}
+      {/* Footer preserved for later use:
       <footer className="site-footer">
         <div className="site-footer__main">
           <div className="site-footer__brand-col">
@@ -697,7 +431,246 @@ export default function App() {
           <span>Global Edge Kubernetes Mesh · Automated Cloud Infrastructure</span>
         </div>
       </footer>
+      */}
     </main>
+
+    {/* Portal section content — OUTSIDE main to avoid overflow:clip clipping */}
+    <div className="portal-content" aria-live="polite">
+
+      {landingSections.map((section, index) => {
+        const active = activePortal === index
+        const isBusinessCase = section.id === 'business-case'
+
+        return (
+          <section
+            key={section.id}
+            id={section.id}
+            className={`portal-panel${active ? ' portal-panel--active' : ''}${isBusinessCase ? ' portal-panel--wide' : ''}`}
+            aria-labelledby={`${section.id}-title`}
+            aria-hidden={!active}
+            hidden={!active}
+          >
+            <div className={`portal-panel__inner${isBusinessCase ? ' portal-panel__inner--2col' : ''}`}>
+              {isBusinessCase ? (
+                <>
+                  <div className="portal-panel__left">
+                    <p className="portal-panel__eyebrow">
+                      <span>{section.number}</span> / {section.eyebrow}
+                    </p>
+                    <h2 id={`${section.id}-title`}>{section.title}</h2>
+                    <p className="portal-panel__description">{section.description}</p>
+
+                    {section.stats && (
+                      <dl className="portal-stats portal-stats--2x2">
+                        {section.stats.map((stat, sIdx) => (
+                          <div
+                            key={stat.label}
+                            onMouseEnter={(e) => animate(e.currentTarget, { translateY: -3, scale: 1.02, duration: 220, ease: 'outQuad' })}
+                            onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, scale: 1, duration: 300, ease: 'outQuad' })}
+                          >
+                            <dt>
+                              <TypewriterText text={stat.value} speed={28} delay={180 + sIdx * 100} showCursor={false} />
+                            </dt>
+                            <dd>{stat.label}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+
+                    {section.costNote && <p className="portal-cost-note">{section.costNote}</p>}
+
+                    {section.cta && (
+                      <div className="portal-cta-group">
+                        <a
+                          className="portal-cta"
+                          href="https://evolut.cloud/"
+                          target="_blank"
+                          rel="noreferrer"
+                          onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
+                          onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
+                        >
+                          {section.cta}<span aria-hidden="true">↗</span>
+                        </a>
+                        <span>{section.ctaNote}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="portal-panel__right">
+                    {section.comparisons && (
+                      <div className="comparison-table-wrap">
+                        <table className="comparison-table">
+                          <thead>
+                            <tr><th>Capability</th><th>Without Evolut</th><th>With Evolut</th></tr>
+                          </thead>
+                          <tbody>
+                            {section.comparisons.map(([name, without, withEvolut]) => (
+                              <tr key={name}>
+                                <th scope="row">{name}</th>
+                                <td>{without}</td>
+                                <td>{withEvolut}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="portal-panel__eyebrow">
+                    <span>{section.number}</span> / {section.eyebrow}
+                  </p>
+                  <h2 id={`${section.id}-title`}>{section.title}</h2>
+                  <p className="portal-panel__description">{section.description}</p>
+
+                  {/* Interactive Terminal Widget */}
+                  {section.terminal && (
+                    <div className="terminal-preview" aria-label="Terminal Preview">
+                      <div className="terminal-header">
+                        <div className="terminal-dots">
+                          <span className="dot dot--red" />
+                          <span className="dot dot--yellow" />
+                          <span className="dot dot--green" />
+                        </div>
+                        <span className="terminal-title">bash — deploy gitops</span>
+                        <span className="terminal-status">● Live</span>
+                      </div>
+                      <div className="terminal-body">
+                        <div className="terminal-prompt-line">
+                          <span className="terminal-prompt-sign">$</span>
+                          <span className="terminal-prompt-cmd">
+                            <TypewriterText text={section.terminal.command} speed={24} delay={180} showCursor={true} />
+                          </span>
+                        </div>
+                        <div className="terminal-steps-list">
+                          {section.terminal.steps.map((step, sIdx) => (
+                            <div key={step.label} className="terminal-step">
+                              <span className={`terminal-badge terminal-badge--${step.status}`}>
+                                {step.label}
+                              </span>
+                              <span className="terminal-text">
+                                <TypewriterText text={step.text} speed={16} delay={320 + sIdx * 150} showCursor={false} />
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pipeline Flow Steps */}
+                  {section.flow && (
+                    <ol className="pipeline-flow" aria-label="Pipeline stages">
+                      {section.flow.map((step, stepIndex) => (
+                        <li
+                          key={step}
+                          onMouseEnter={(e) => animate(e.currentTarget, { translateY: -2, duration: 200, ease: 'outQuad' })}
+                          onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, duration: 250, ease: 'outQuad' })}
+                        >
+                          {step}
+                          {stepIndex < section.flow.length - 1 && <span aria-hidden="true">›</span>}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  {/* Environments Staging Cards */}
+                  {section.environments && (
+                    <div className="portal-environments" aria-label="Isolated Environments">
+                      {section.environments.map((env, eIdx) => (
+                        <div
+                          key={env.name}
+                          className="env-card"
+                          onMouseEnter={(e) => animate(e.currentTarget, { translateY: -3, scale: 1.02, duration: 220, ease: 'outQuad' })}
+                          onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, scale: 1, duration: 300, ease: 'outQuad' })}
+                        >
+                          <div className="env-card__header">
+                            <span className="env-card__name">{env.name}</span>
+                            <span className="env-card__ping">⚡ {env.ping}</span>
+                          </div>
+                          <div className="env-card__url">
+                            <TypewriterText text={env.url} speed={18} delay={150 + eIdx * 100} showCursor={false} />
+                          </div>
+                          <div className="env-card__footer">
+                            <span className="env-card__status">● {env.status}</span>
+                            <span className="env-card__version">{env.version}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Telemetry Metrics Widget */}
+                  {section.telemetry && (
+                    <div className="portal-telemetry" aria-label="Live Telemetry Signals">
+                      {section.telemetry.map((item, tIdx) => (
+                        <div
+                          key={item.metric}
+                          className="telemetry-card"
+                          onMouseEnter={(e) => animate(e.currentTarget, { translateY: -3, scale: 1.02, duration: 220, ease: 'outQuad' })}
+                          onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, scale: 1, duration: 300, ease: 'outQuad' })}
+                        >
+                          <div className="telemetry-card__top">
+                            <span className="telemetry-card__metric">{item.metric}</span>
+                            <span className="telemetry-card__badge">{item.badge}</span>
+                          </div>
+                          <div className="telemetry-card__value">
+                            <TypewriterText text={item.value} speed={28} delay={180 + tIdx * 100} showCursor={false} />
+                          </div>
+                          <div className="telemetry-card__sub">{item.sub}</div>
+                          <div className="telemetry-card__bar-wrap">
+                            <div className="telemetry-card__bar-fill" data-fill={item.bar || '75%'} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Key Facts Pill Badges */}
+                  {section.facts && (
+                    <ul className="portal-facts">
+                      {section.facts.map((fact) => (
+                        <li
+                          key={fact}
+                          onMouseEnter={(e) => animate(e.currentTarget, { translateY: -2, duration: 200, ease: 'outQuad' })}
+                          onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, duration: 250, ease: 'outQuad' })}
+                        >
+                          {fact}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Feature Cards Grid */}
+                  {section.details && (
+                    <dl className="portal-details">
+                      {section.details.map((detail, dIdx) => (
+                        <div
+                          key={detail.label}
+                          onMouseEnter={(e) => animate(e.currentTarget, { translateY: -3, scale: 1.02, duration: 220, ease: 'outQuad' })}
+                          onMouseLeave={(e) => animate(e.currentTarget, { translateY: 0, scale: 1, duration: 300, ease: 'outQuad' })}
+                        >
+                          <dt>{detail.label}</dt>
+                          <dd>
+                            <TypewriterText text={detail.text} speed={14} delay={150 + dIdx * 80} showCursor={false} />
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+
+    {/* Interactive Liquid Glass Orb based on LerSent001/orb */}
+    <LiquidGlassOrb opacity={loginOpacity} isVisible={loginVisible} />
+    </>
   )
 }
 
