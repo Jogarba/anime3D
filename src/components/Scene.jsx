@@ -157,25 +157,9 @@ function WaterParticleRipples() {
   )
 }
 
-function CursorLight({ progress }) {
-  const lightRef = useRef(null)
-
-  useFrame((state) => {
-    if (!lightRef.current) return
-    const pointer = state.pointer || { x: 0, y: 0 }
-    lightRef.current.position.x = THREE.MathUtils.damp(lightRef.current.position.x, pointer.x * 5, 3.5, 0.016)
-    lightRef.current.position.y = THREE.MathUtils.damp(lightRef.current.position.y, pointer.y * 3.8, 3.5, 0.016)
-    lightRef.current.intensity = 2.6
-  })
-
-  return <pointLight ref={lightRef} position={[0, 0, 3.8]} color="#60a5fa" distance={12} decay={1.8} />
-}
-
 function AnimatedModel({ progress }) {
   const group = useRef(null)
   const clickWave = useRef({ active: false, time: 0 })
-  const prevPointer = useRef({ x: 0, y: 0 })
-  const pointerVelocity = useRef({ x: 0, y: 0 })
 
   useEffect(() => {
     const onWindowClick = () => {
@@ -207,53 +191,37 @@ function AnimatedModel({ progress }) {
 
     const activeMotion = heroFactor * motionFactor
 
-    // 1. Cursor velocity momentum
-    const pointer = state.pointer || { x: 0, y: 0 }
-    const vx = (pointer.x - prevPointer.current.x) / Math.max(delta, 0.001)
-    const vy = (pointer.y - prevPointer.current.y) / Math.max(delta, 0.001)
-    prevPointer.current.x = pointer.x
-    prevPointer.current.y = pointer.y
-
-    pointerVelocity.current.x = THREE.MathUtils.damp(pointerVelocity.current.x, vx, 4.0, delta)
-    pointerVelocity.current.y = THREE.MathUtils.damp(pointerVelocity.current.y, vy, 4.0, delta)
-
-    // 2. Water wave impulse on click
+    // 1. Water wave impulse on click
     let waterBobY = 0
     let waterBobRotX = 0
     let waterBobScale = 0
     if (clickWave.current.active) {
       clickWave.current.time += delta
       const t = clickWave.current.time
-      const decay = Math.exp(-t * 1.6)
-      waterBobY = Math.sin(t * 4.8) * 0.07 * decay * activeMotion
-      waterBobRotX = Math.cos(t * 4.2) * 0.05 * decay * activeMotion
-      waterBobScale = Math.sin(t * 5.0) * 0.025 * decay * activeMotion
-      if (t > 2.8) {
+      const decay = Math.exp(-t * 1.8)
+      waterBobY = Math.sin(t * 4.2) * 0.04 * decay * activeMotion
+      waterBobRotX = Math.cos(t * 3.8) * 0.025 * decay * activeMotion
+      waterBobScale = Math.sin(t * 4.5) * 0.015 * decay * activeMotion
+      if (t > 2.2) {
         clickWave.current.active = false
       }
     }
 
-    // 3. Multi-frequency organic Lissajous float
-    const driftY = (Math.sin(time * 0.82) * 0.085 + Math.sin(time * 1.74 + 1.2) * 0.042) * activeMotion
-    const driftX = (Math.cos(time * 0.68) * 0.065 + Math.cos(time * 1.52 + 2.1) * 0.032) * activeMotion
-    const driftZ = Math.sin(time * 0.58 + 0.9) * 0.045 * activeMotion
+    // 2. Multi-frequency organic Lissajous float (natural ambient breathing)
+    const driftY = (Math.sin(time * 0.72) * 0.045 + Math.sin(time * 1.54 + 1.2) * 0.02) * activeMotion
+    const driftX = (Math.cos(time * 0.58) * 0.035 + Math.cos(time * 1.32 + 2.1) * 0.015) * activeMotion
+    const driftZ = Math.sin(time * 0.48 + 0.9) * 0.025 * activeMotion
 
-    // 4. Living breathing pulse
-    const breath = (Math.sin(time * 1.35) * 0.018 + Math.sin(time * 2.7 + 0.8) * 0.006) * Math.max(activeMotion, 0.15)
+    // 3. Living breathing pulse
+    const breath = (Math.sin(time * 1.2) * 0.012 + Math.sin(time * 2.4 + 0.8) * 0.004) * Math.max(activeMotion, 0.15)
     const pulseScale = breath + waterBobScale
 
-    // 5. Cursor gaze & velocity tilt
-    const mouseLookY = (pointer.x * 0.22 + pointerVelocity.current.x * 0.010) * activeMotion
-    const mouseLookX = (-pointer.y * 0.16 - pointerVelocity.current.y * 0.008) * activeMotion
-    const mouseShiftX = pointer.x * 0.12 * activeMotion
-    const mouseShiftY = pointer.y * 0.08 * activeMotion
+    // 4. Harmonic bio-rotational wobble
+    const bioTiltX = (Math.sin(time * 0.85) * 0.025 + Math.cos(time * 1.6) * 0.01) * activeMotion
+    const bioTiltY = (Math.cos(time * 0.72) * 0.03 + Math.sin(time * 1.42) * 0.012) * activeMotion
+    const bioTiltZ = Math.sin(time * 0.62) * 0.018 * activeMotion
 
-    // 6. Harmonic bio-rotational wobble
-    const bioTiltX = (Math.sin(time * 0.95) * 0.05 + Math.cos(time * 1.9) * 0.02) * activeMotion
-    const bioTiltY = (Math.cos(time * 0.82) * 0.06 + Math.sin(time * 1.62) * 0.025) * activeMotion
-    const bioTiltZ = (Math.sin(time * 0.72) * 0.035 + pointerVelocity.current.x * 0.012) * activeMotion
-
-    // 7. Dynamic scale: 0.92 on Hero / Overview / Login, expands to 1.0 during sections
+    // 5. Dynamic scale: 0.92 on Hero / Overview / Login, expands to 1.0 during sections
     let baseScale = 0.92
     if (p < INITIAL_ZOOM_DISTANCE) {
       baseScale = THREE.MathUtils.lerp(0.92, 1.0, THREE.MathUtils.smoothstep(p, 0, INITIAL_ZOOM_DISTANCE))
@@ -271,15 +239,23 @@ function AnimatedModel({ progress }) {
     const smoothedScale = THREE.MathUtils.damp(currentScale, targetScale, 4.5, delta)
     group.current.scale.set(smoothedScale, smoothedScale, smoothedScale)
 
-    // 8. Fluid position damping with buoyant water bob
-    const targetX = driftX + mouseShiftX
-    const targetY = driftY + mouseShiftY + waterBobY
-    const targetZ = driftZ
-    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, targetX, 3.4, delta)
-    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, targetY, 3.4, delta)
-    group.current.position.z = THREE.MathUtils.damp(group.current.position.z, targetZ, 3.2, delta)
+    // 6. Interactive Cursor Following (smooth parallax & responsive orientation)
+    const ptrX = state.pointer.x || 0
+    const ptrY = state.pointer.y || 0
+    const mouseFollowX = ptrX * 0.22 * (activeMotion > 0 ? activeMotion : 0.45)
+    const mouseFollowY = ptrY * 0.16 * (activeMotion > 0 ? activeMotion : 0.45)
+    const mouseLookX = -ptrY * 0.32 * (activeMotion > 0 ? activeMotion : 0.4)
+    const mouseLookY = ptrX * 0.38 * (activeMotion > 0 ? activeMotion : 0.4)
 
-    // 9. Exact rotation on Z per hexagon station & initial turn on Y
+    // 7. Fluid position damping with buoyant water bob and cursor parallax
+    const targetX = driftX + mouseFollowX
+    const targetY = driftY + waterBobY + mouseFollowY
+    const targetZ = driftZ
+    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, targetX, 2.8, delta)
+    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, targetY, 2.8, delta)
+    group.current.position.z = THREE.MathUtils.damp(group.current.position.z, targetZ, 2.8, delta)
+
+    // 8. Exact rotation on Z per hexagon station & initial turn on Y
     let scrollRotZ = 0
     let initialTurnY = 0
 
@@ -294,20 +270,16 @@ function AnimatedModel({ progress }) {
       const inCycle = sectionOffset - cycleIndex * SECTION_CYCLE
 
       if (cycleIndex >= SECTION_COUNT - 1) {
-        // Last section station (Section 06 / -300deg)
         scrollRotZ = -(SECTION_COUNT - 1) * (Math.PI / 3)
       } else if (inCycle <= SECTION_HOLD_DISTANCE) {
-        // Centered on active hexagon
         scrollRotZ = -cycleIndex * (Math.PI / 3)
       } else {
-        // Smooth rotation to next hexagon
         const transT = (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE
         const smoothedT = THREE.MathUtils.smoothstep(transT, 0, 1)
         scrollRotZ = -(cycleIndex + smoothedT) * (Math.PI / 3)
       }
     } else if (p < OVERVIEW_ZOOM_OUT_END) {
       const zoomOutFactor = THREE.MathUtils.smoothstep(p, OVERVIEW_ZOOM_OUT_START, OVERVIEW_ZOOM_OUT_END)
-      // Smoothly completes rotation back to front-facing upright position
       initialTurnY = THREE.MathUtils.lerp(Math.PI, Math.PI * 2, zoomOutFactor)
       scrollRotZ = THREE.MathUtils.lerp(-(SECTION_COUNT - 1) * (Math.PI / 3), -Math.PI * 2, zoomOutFactor)
     } else {
@@ -315,13 +287,13 @@ function AnimatedModel({ progress }) {
       scrollRotZ = -Math.PI * 2
     }
 
-    const targetRotX = mouseLookX + bioTiltX + waterBobRotX
-    const targetRotY = initialTurnY + mouseLookY + bioTiltY
+    const targetRotX = bioTiltX + waterBobRotX + mouseLookX
+    const targetRotY = initialTurnY + bioTiltY + mouseLookY
     const targetRotZ = scrollRotZ + bioTiltZ
 
-    group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRotX, 3.8, delta)
-    group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRotY, 4.5, delta)
-    group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, targetRotZ, 3.0, delta)
+    group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRotX, 3.2, delta)
+    group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRotY, 3.6, delta)
+    group.current.rotation.z = THREE.MathUtils.damp(group.current.rotation.z, targetRotZ, 2.6, delta)
   })
 
   return <Model groupRef={group} progress={progress} />
@@ -447,7 +419,6 @@ export default function Scene({ progress }) {
         <ambientLight intensity={0.65} />
         <directionalLight position={[4, 5, 6]} intensity={2.2} />
         <pointLight position={[-4, 1, 3]} intensity={1.4} />
-        <CursorLight progress={progress} />
         <Suspense fallback={null}>
           <AnimatedModel progress={progress} />
           <WaterParticleRipples />

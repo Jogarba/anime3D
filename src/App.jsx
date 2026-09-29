@@ -335,7 +335,7 @@ export default function App() {
           onClick={(event) => navigateToProgress(event, 0)}
           aria-label="Evolut, home"
         >
-          <img src="/assets/logo-nobg.png" alt="Evolut Logo" className="site-brand__logo" />
+          <img src="/assets/logo-white.png" alt="Evolut Logo" className="site-brand__logo" />
           <span>EVOLUT</span>
         </a>
         <nav aria-label="Main navigation">
@@ -345,18 +345,28 @@ export default function App() {
           <a href="#security" onClick={(event) => navigateToProgress(event, portalTarget(3))}>Security</a>
           <a href="#operations" onClick={(event) => navigateToProgress(event, portalTarget(4))}>Observability</a>
           <a href="#business-case" onClick={(event) => navigateToProgress(event, portalTarget(5))}>Business Case</a>
-          <a href="#login" onClick={(event) => navigateToProgress(event, getLoginTarget())}>Console</a>
         </nav>
-        <a
-          className="site-nav__cta"
-          href="https://evolut.cloud/"
-          target="_blank"
-          rel="noreferrer"
-          onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
-          onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
-        >
-          Book a demo <span aria-hidden="true">↗</span>
-        </a>
+        <div className="site-nav__actions">
+          <a
+            className="site-nav__start-btn"
+            href="#login"
+            onClick={(event) => navigateToProgress(event, getLoginTarget())}
+            onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
+            onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
+          >
+            Start
+          </a>
+          <a
+            className="site-nav__cta"
+            href="https://evolut.cloud/"
+            target="_blank"
+            rel="noreferrer"
+            onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
+            onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
+          >
+            Book a demo <span aria-hidden="true">↗</span>
+          </a>
+        </div>
       </header>
 
       {/* Permanent Fixed Background Hex Pattern for ALL pages */}

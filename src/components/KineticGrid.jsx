@@ -12,8 +12,6 @@ export default function KineticGrid() {
     let width = (canvas.width = window.innerWidth)
     let height = (canvas.height = window.innerHeight)
 
-    let mouseX = -1000
-    let mouseY = -1000
     let ripples = []
     let meteors = []
     let clickSparks = []
@@ -77,16 +75,6 @@ export default function KineticGrid() {
       height = canvas.height = window.innerHeight
     }
 
-    const onMouseMove = (e) => {
-      mouseX = e.clientX
-      mouseY = e.clientY
-    }
-
-    const onMouseLeave = () => {
-      mouseX = -1000
-      mouseY = -1000
-    }
-
     const onClick = (e) => {
       const clickX = e.clientX
       const clickY = e.clientY
@@ -136,8 +124,6 @@ export default function KineticGrid() {
     }
 
     window.addEventListener('resize', onResize)
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseleave', onMouseLeave)
     window.addEventListener('click', onClick)
 
     let tick = 0
@@ -147,20 +133,7 @@ export default function KineticGrid() {
       tick++
       ctx.clearRect(0, 0, width, height)
 
-      // 1. Draw glowing ambient cursor aura when mouse is on screen
-      if (mouseX > 0 && mouseY > 0) {
-        const aura = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, 220)
-        aura.addColorStop(0, 'rgba(56, 189, 248, 0.20)')
-        aura.addColorStop(0.35, 'rgba(75, 142, 255, 0.10)')
-        aura.addColorStop(0.7, 'rgba(30, 64, 175, 0.03)')
-        aura.addColorStop(1, 'rgba(15, 23, 42, 0)')
-        ctx.fillStyle = aura
-        ctx.beginPath()
-        ctx.arc(mouseX, mouseY, 220, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      // 2. Draw Floating Square / Diamond Cyber Particles (Matching User Reference Image)
+      // 1. Draw Floating Square / Diamond Cyber Particles (Matching User Reference Image)
       for (let s = 0; s < squareParticles.length; s++) {
         const sq = squareParticles[s]
         sq.x += sq.vx
@@ -196,7 +169,7 @@ export default function KineticGrid() {
         ctx.restore()
       }
 
-      // 3. Draw Floating Glowing Starlight Particles across all sections
+      // 2. Draw Floating Glowing Starlight Particles across all sections
       for (let o = 0; o < starlightOrbs.length; o++) {
         const orb = starlightOrbs[o]
         orb.x += orb.vx
@@ -235,7 +208,7 @@ export default function KineticGrid() {
         }
       }
 
-      // 4. Regular Dot Matrix Grid (Matching User Reference Image)
+      // 3. Regular Dot Matrix Grid — Calm, Subtle, Uniform & Static Background
       const cols = Math.floor(width / spacing) + 1
       const rows = Math.floor(height / spacing) + 1
 
@@ -247,65 +220,33 @@ export default function KineticGrid() {
           const x = startX + i * spacing
           const y = startY + j * spacing
 
-          const dx = mouseX - x
-          const dy = mouseY - y
-          const dist = Math.sqrt(dx * dx + dy * dy)
-
-          let scale = 1
-          let alpha = 0.32
+          let alpha = 0.16
           let offsetX = 0
           let offsetY = 0
-          let isGlowingDot = false
 
-          const maxDist = 240
-          if (dist < maxDist) {
-            const factor = 1 - dist / maxDist
-            scale = 1 + factor * 3.4
-            alpha = 0.45 + factor * 0.55
-            offsetX = -(dx / dist) * factor * 14
-            offsetY = -(dy / dist) * factor * 14
-            if (factor > 0.4) {
-              isGlowingDot = true
-            }
-          }
-
-          // Undulating ripple wave interaction
+          // Undulating ripple wave interaction on click only
           for (let k = 0; k < ripples.length; k++) {
             const rip = ripples[k]
             if (rip.radius <= 0) continue
             const ripDist = Math.sqrt((rip.x - x) ** 2 + (rip.y - y) ** 2)
             const rDiff = ripDist - rip.radius
-            if (Math.abs(rDiff) < 70) {
-              const rFactor = (1 - Math.abs(rDiff) / 70) * rip.alpha
+            if (Math.abs(rDiff) < 50) {
+              const rFactor = (1 - Math.abs(rDiff) / 50) * rip.alpha
               const waveHeight = Math.sin(rDiff * 0.09) * rFactor
-              scale = Math.max(scale, 1 + rFactor * 3.5)
-              alpha = Math.max(alpha, 0.45 + rFactor * 0.55)
+              alpha = Math.max(alpha, 0.2 + rFactor * 0.3)
               const angle = Math.atan2(y - rip.y, x - rip.x)
-              offsetX += Math.cos(angle) * waveHeight * 15
-              offsetY += Math.sin(angle) * waveHeight * 15
+              offsetX += Math.cos(angle) * waveHeight * 4
+              offsetY += Math.sin(angle) * waveHeight * 4
             }
           }
 
           const px = x + offsetX
           const py = y + offsetY
 
-          if (isGlowingDot) {
-            // Bright illuminated blue dot (like the top left glowing dot in reference image)
-            ctx.save()
-            ctx.shadowColor = '#38bdf8'
-            ctx.shadowBlur = 10
-            ctx.fillStyle = `rgba(56, 189, 248, ${alpha})`
-            ctx.beginPath()
-            ctx.arc(px, py, 1.4 * scale, 0, Math.PI * 2)
-            ctx.fill()
-            ctx.restore()
-          } else {
-            // Standard crisp matrix grid dot
-            ctx.fillStyle = `rgba(75, 142, 255, ${alpha})`
-            ctx.beginPath()
-            ctx.arc(px, py, 1.25 * scale, 0, Math.PI * 2)
-            ctx.fill()
-          }
+          ctx.fillStyle = `rgba(75, 142, 255, ${alpha})`
+          ctx.beginPath()
+          ctx.arc(px, py, 1.0, 0, Math.PI * 2)
+          ctx.fill()
         }
       }
 
@@ -402,8 +343,6 @@ export default function KineticGrid() {
 
     return () => {
       window.removeEventListener('resize', onResize)
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseleave', onMouseLeave)
       window.removeEventListener('click', onClick)
       cancelAnimationFrame(animId)
     }

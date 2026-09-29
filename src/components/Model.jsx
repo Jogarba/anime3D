@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { TOTAL_SCROLL_PROGRESS } from '../sceneSequence'
+import { TOTAL_SCROLL_PROGRESS, INITIAL_ZOOM_DISTANCE } from '../sceneSequence'
 
 // Evolutionary chromatic palettes that smoothly morph the 3D model as you scroll
 export const EVOLUTION_STAGES = [
@@ -141,7 +141,16 @@ export default function Model({ groupRef, progress }) {
     if (!coreMat || !circuitMat) return
 
     const currentP = progress?.current || 0
-    const norm = THREE.MathUtils.clamp(currentP / TOTAL_SCROLL_PROGRESS, 0, 1)
+    const scrollNorm = THREE.MathUtils.clamp(currentP / TOTAL_SCROLL_PROGRESS, 0, 1)
+    const time = state.clock.getElapsedTime()
+
+    // Smooth continuous chromatic morphing at the start / hero view
+    // Cycles seamlessly through the color evolution stages in real-time
+    const heroCycle = (time * 0.12) % 1.0
+
+    // Hero influence is 1.0 at the beginning and smoothly transitions to scroll-driven as you scroll into sections
+    const heroWeight = Math.max(0, 1 - Math.min(1, currentP / (INITIAL_ZOOM_DISTANCE * 0.85)))
+    const norm = THREE.MathUtils.lerp(scrollNorm, heroCycle, heroWeight)
 
     // Find enclosing evolution stages
     let stageA = EVOLUTION_STAGES[0]
@@ -168,7 +177,6 @@ export default function Model({ groupRef, progress }) {
     const targetRoughness = THREE.MathUtils.lerp(stageA.roughness, stageB.roughness, factor)
     const targetClearcoatRoughness = THREE.MathUtils.lerp(stageA.clearcoatRoughness, stageB.clearcoatRoughness, factor)
 
-    const time = state.clock.getElapsedTime()
     const pulse = Math.sin(time * 2.2) * 0.12 + 1.0
 
     const lerpSpeed = Math.min(1, delta * 6.5)
