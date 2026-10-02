@@ -277,7 +277,9 @@ export default function App() {
     const loop = (now) => {
       const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000))
       last = now
-      const k = 1 - Math.exp(-7 * dt)
+      const isMobile = window.innerWidth <= 768
+      const speed = isMobile ? 12 : 7
+      const k = 1 - Math.exp(-speed * dt)
       progress.current += (raw - progress.current) * k
       if (Math.abs(raw - progress.current) > 0.0005) {
         apply()

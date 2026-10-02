@@ -408,10 +408,12 @@ function OfflineEnvironment() {
 }
 
 export default function Scene({ progress }) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
+
   return (
     <div className="canvas-wrap" aria-hidden="true">
       <Canvas
-        dpr={[1, 1.8]}
+        dpr={isMobile ? [1, 1.25] : [1, 1.8]}
         camera={{ position: [0, 0, 7], fov: 35 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       >
@@ -422,9 +424,16 @@ export default function Scene({ progress }) {
         <Suspense fallback={null}>
           <AnimatedModel progress={progress} />
           <WaterParticleRipples />
-          <AmbientParticles />
+          <AmbientParticles count={isMobile ? 50 : 130} />
           <OfflineEnvironment />
-          <ContactShadows position={[0, -2.2, 0]} opacity={0.24} scale={8} blur={2.8} far={5} />
+          <ContactShadows
+            position={[0, -2.2, 0]}
+            opacity={0.24}
+            scale={8}
+            blur={2.8}
+            far={5}
+            resolution={isMobile ? 256 : 512}
+          />
         </Suspense>
       </Canvas>
     </div>

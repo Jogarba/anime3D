@@ -113,23 +113,11 @@ void main() {
   float dist = length(uv);
   
   // Audio-reactive dynamic radius expansion on bass & voice energy
-  float radius = 0.36 + u_audioLow * 0.035;
+  float radius = 0.45 + u_audioLow * 0.035;
 
-  // Outer ambient aura glow modulated by high frequencies & voice energy
-  float glowDecay = 12.0 - u_audioHigh * 4.5;
-  float glowIntensity = 0.45 + u_audioVol * 0.85;
-  float outerGlow = exp(-max(dist - radius, 0.0) * glowDecay) * glowIntensity;
-  vec3 glowColor = mix(
-    vec3(0.02, 0.65, 0.95),
-    vec3(0.85, 0.18, 0.92),
-    sin(u_time * 0.8 + u_audioMid * 3.0) * 0.5 + 0.5
-  );
-
-  if (dist > radius + 0.09) {
-    float bgAlpha = outerGlow * u_opacity;
-    if (bgAlpha < 0.005) discard;
-    gl_FragColor = vec4(glowColor * outerGlow, bgAlpha);
-    return;
+  // Discard everything outside the circular orb so no rectangular canvas boundary is ever drawn
+  if (dist > radius) {
+    discard;
   }
 
   // 3D Glass Sphere Ray Intersection
@@ -145,7 +133,7 @@ void main() {
   
   // Fluid turbulence coordinates accelerated by voice volume and mids
   vec3 flowPos = vec3(
-    uv * (2.4 + u_audioLow * 0.8) + u_mouse * 0.35,
+    uv * (2.4 + u_audioLow * 0.8),
     u_time * (0.32 + u_audioMid * 0.6) + u_audioVol * 1.5
   );
 
@@ -184,11 +172,10 @@ void main() {
   vec3 rimColor = mix(vec3(0.2, 0.8, 1.0), vec3(0.95, 0.25, 0.85), fresnel);
   vec3 finalColor = mix(liquidColor, rimColor, fresnel * 0.65) + specular;
 
-  // Edge feather smoothing
-  float edgeAlpha = smoothstep(radius, radius - 0.008, dist);
-  finalColor += glowColor * outerGlow;
+  // Antialiased circular edge feathering
+  float edgeAlpha = smoothstep(radius, radius - 0.012, dist);
 
-  float alpha = max(edgeAlpha, outerGlow) * u_opacity;
+  float alpha = edgeAlpha * u_opacity;
   gl_FragColor = vec4(finalColor, alpha);
 }
 `
@@ -417,17 +404,10 @@ export default function LiquidGlassOrb({ opacity, isVisible }) {
     let startTime = performance.now()
     const freqData = new Uint8Array(128)
 
-    const onPointerMove = (e) => {
-      const rect = canvas.getBoundingClientRect()
-      mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-      mouseRef.current.y = -(((e.clientY - rect.top) / rect.height) * 2 - 1)
-    }
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true })
-
     const render = (now) => {
-      const width = canvas.clientWidth * window.devicePixelRatio
-      const height = canvas.clientHeight * window.devicePixelRatio
+      const dpr = Math.min(window.devicePixelRatio || 1, window.innerWidth <= 768 ? 1.25 : 1.5)
+      const width = canvas.clientWidth * dpr
+      const height = canvas.clientHeight * dpr
 
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width
@@ -465,7 +445,7 @@ export default function LiquidGlassOrb({ opacity, isVisible }) {
 
       gl.uniform2f(uRes, canvas.width, canvas.height)
       gl.uniform1f(uTime, elapsed)
-      gl.uniform2f(uMouse, mouseRef.current.x, mouseRef.current.y)
+      gl.uniform2f(uMouse, 0.0, 0.0)
       gl.uniform1f(uOpacity, opacity)
       gl.uniform1f(uAudioLow, ad.low)
       gl.uniform1f(uAudioMid, ad.mid)
@@ -484,7 +464,6 @@ export default function LiquidGlassOrb({ opacity, isVisible }) {
     return () => {
       cancelAnimationFrame(animationFrame)
       clearInterval(speechSimTimerRef.current)
-      window.removeEventListener('pointermove', onPointerMove)
       gl.deleteProgram(program)
       gl.deleteShader(vs)
       gl.deleteShader(fs)
@@ -498,19 +477,20 @@ export default function LiquidGlassOrb({ opacity, isVisible }) {
 
   return (
     <div
-      className="liquid-orb-container"
+      className={`liquid-orb-container ${isSpeaking ? 'liquid-orb-container--speaking' : ''}`}
       style={{
         opacity: opacity,
-        transform: `translate(-50%, -50%) scale(${0.9 + opacity * 0.1})`,
+        '--orb-scale': `${0.9 + opacity * 0.1}`,
         pointerEvents: opacity > 0.3 ? 'auto' : 'none',
       }}
       aria-label="Liquid Glass Voice AI Orb"
     >
+      <div className="siri-glow-ring" aria-hidden="true" />
       <canvas
         ref={canvasRef}
         className="liquid-orb-canvas"
         onClick={handleOrbClick}
-        title="Haz clic para interactuar con Evolut"
+        title="Toca para interactuar con Evolut"
       />
     </div>
   )

@@ -16,18 +16,19 @@ export default function KineticGrid() {
     let meteors = []
     let clickSparks = []
 
-    const spacing = 42
+    const isMobile = window.innerWidth <= 768
+    const spacing = isMobile ? 48 : 42
 
-    // 1. Floating cyber dust / square & diamond particles (matching reference image)
-    const squareParticleCount = 65
+    // 1. Floating cyber dust / square & diamond particles
+    const squareParticleCount = isMobile ? 24 : 65
     const squareParticles = Array.from({ length: squareParticleCount }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      size: Math.random() * 2.2 + 1.6,
-      vx: (Math.random() - 0.5) * 0.28,
-      vy: (Math.random() - 0.5) * 0.28 - 0.12,
-      alpha: Math.random() * 0.45 + 0.35,
-      baseAlpha: Math.random() * 0.45 + 0.35,
+      size: Math.random() * 2.0 + 1.4,
+      vx: (Math.random() - 0.5) * 0.24,
+      vy: (Math.random() - 0.5) * 0.24 - 0.1,
+      alpha: Math.random() * 0.4 + 0.3,
+      baseAlpha: Math.random() * 0.4 + 0.3,
       twinkleSpeed: Math.random() * 0.02 + 0.01,
       phase: Math.random() * Math.PI * 2,
       rotation: Math.random() * Math.PI,
@@ -36,15 +37,15 @@ export default function KineticGrid() {
     }))
 
     // 2. Floating glowing starlight orbs across all sections
-    const orbCount = 70
+    const orbCount = isMobile ? 26 : 70
     const starlightOrbs = Array.from({ length: orbCount }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
-      radius: Math.random() * 1.6 + 1.0,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: (Math.random() - 0.5) * 0.35 - 0.08,
-      alpha: Math.random() * 0.5 + 0.35,
-      baseAlpha: Math.random() * 0.5 + 0.35,
+      radius: Math.random() * 1.5 + 0.9,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3 - 0.06,
+      alpha: Math.random() * 0.45 + 0.3,
+      baseAlpha: Math.random() * 0.45 + 0.3,
       pulseSpeed: Math.random() * 0.025 + 0.015,
       phase: Math.random() * Math.PI * 2,
       color: Math.random() > 0.6 ? '56, 189, 248' : Math.random() > 0.3 ? '96, 165, 250' : '224, 242, 254',
@@ -102,8 +103,9 @@ export default function KineticGrid() {
         color: '96, 165, 250',
       })
 
-      // Starlight sparks
-      for (let i = 0; i < 30; i++) {
+      // Starlight sparks (reduced count on mobile for 60fps responsiveness)
+      const sparkCount = isMobile ? 12 : 30
+      for (let i = 0; i < sparkCount; i++) {
         const angle = Math.random() * Math.PI * 2
         const speed = Math.random() * 4.2 + 1.5
         clickSparks.push({
@@ -133,7 +135,7 @@ export default function KineticGrid() {
       tick++
       ctx.clearRect(0, 0, width, height)
 
-      // 1. Draw Floating Square / Diamond Cyber Particles (Matching User Reference Image)
+      // 1. Draw Floating Square / Diamond Cyber Particles
       for (let s = 0; s < squareParticles.length; s++) {
         const sq = squareParticles[s]
         sq.x += sq.vx
@@ -151,9 +153,11 @@ export default function KineticGrid() {
         ctx.save()
         ctx.translate(sq.x, sq.y)
         ctx.rotate(sq.rotation)
-        ctx.fillStyle = `rgba(203, 213, 225, ${alpha})` // Light silver-cyan square
-        ctx.shadowColor = '#93c5fd'
-        ctx.shadowBlur = 4 * alpha
+        ctx.fillStyle = `rgba(203, 213, 225, ${alpha})`
+        if (!isMobile) {
+          ctx.shadowColor = '#93c5fd'
+          ctx.shadowBlur = 4 * alpha
+        }
 
         if (sq.isDiamond) {
           ctx.beginPath()
@@ -185,19 +189,22 @@ export default function KineticGrid() {
 
         ctx.save()
         ctx.fillStyle = `rgba(${orb.color}, ${alpha})`
-        ctx.shadowColor = '#38bdf8'
-        ctx.shadowBlur = 6 * alpha
+        if (!isMobile) {
+          ctx.shadowColor = '#38bdf8'
+          ctx.shadowBlur = 6 * alpha
+        }
         ctx.beginPath()
         ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2)
         ctx.fill()
         ctx.restore()
 
-        // Subtle constellation thread to other nearby orbs
-        for (let j = o + 1; j < Math.min(o + 6, starlightOrbs.length); j++) {
+        // Constellation threads (limit connections on mobile)
+        const maxConnections = isMobile ? Math.min(o + 3, starlightOrbs.length) : Math.min(o + 6, starlightOrbs.length)
+        for (let j = o + 1; j < maxConnections; j++) {
           const other = starlightOrbs[j]
           const dist = Math.hypot(orb.x - other.x, orb.y - other.y)
-          if (dist < 85) {
-            const lineAlpha = (1 - dist / 85) * 0.18 * Math.min(alpha, other.baseAlpha)
+          if (dist < (isMobile ? 65 : 85)) {
+            const lineAlpha = (1 - dist / (isMobile ? 65 : 85)) * 0.18 * Math.min(alpha, other.baseAlpha)
             ctx.strokeStyle = `rgba(125, 211, 252, ${lineAlpha})`
             ctx.lineWidth = 0.6
             ctx.beginPath()
@@ -208,47 +215,44 @@ export default function KineticGrid() {
         }
       }
 
-      // 3. Regular Dot Matrix Grid — Calm, Subtle, Uniform & Static Background
+      // 3. Regular Dot Matrix Grid — Highly batched for peak performance
       const cols = Math.floor(width / spacing) + 1
       const rows = Math.floor(height / spacing) + 1
 
       const startX = (width - cols * spacing) / 2
       const startY = (height - rows * spacing) / 2
 
+      ctx.fillStyle = 'rgba(75, 142, 255, 0.15)'
+      ctx.beginPath()
       for (let i = 0; i <= cols; i++) {
         for (let j = 0; j <= rows; j++) {
           const x = startX + i * spacing
           const y = startY + j * spacing
 
-          let alpha = 0.16
           let offsetX = 0
           let offsetY = 0
 
-          // Undulating ripple wave interaction on click only
-          for (let k = 0; k < ripples.length; k++) {
-            const rip = ripples[k]
-            if (rip.radius <= 0) continue
-            const ripDist = Math.sqrt((rip.x - x) ** 2 + (rip.y - y) ** 2)
-            const rDiff = ripDist - rip.radius
-            if (Math.abs(rDiff) < 50) {
-              const rFactor = (1 - Math.abs(rDiff) / 50) * rip.alpha
-              const waveHeight = Math.sin(rDiff * 0.09) * rFactor
-              alpha = Math.max(alpha, 0.2 + rFactor * 0.3)
-              const angle = Math.atan2(y - rip.y, x - rip.x)
-              offsetX += Math.cos(angle) * waveHeight * 4
-              offsetY += Math.sin(angle) * waveHeight * 4
+          if (ripples.length > 0) {
+            for (let k = 0; k < ripples.length; k++) {
+              const rip = ripples[k]
+              if (rip.radius <= 0) continue
+              const ripDist = Math.sqrt((rip.x - x) ** 2 + (rip.y - y) ** 2)
+              const rDiff = ripDist - rip.radius
+              if (Math.abs(rDiff) < 45) {
+                const rFactor = (1 - Math.abs(rDiff) / 45) * rip.alpha
+                const waveHeight = Math.sin(rDiff * 0.09) * rFactor
+                const angle = Math.atan2(y - rip.y, x - rip.x)
+                offsetX += Math.cos(angle) * waveHeight * 3
+                offsetY += Math.sin(angle) * waveHeight * 3
+              }
             }
           }
 
-          const px = x + offsetX
-          const py = y + offsetY
-
-          ctx.fillStyle = `rgba(75, 142, 255, ${alpha})`
-          ctx.beginPath()
-          ctx.arc(px, py, 1.0, 0, Math.PI * 2)
-          ctx.fill()
+          ctx.moveTo(x + offsetX + 1.0, y + offsetY)
+          ctx.arc(x + offsetX, y + offsetY, 1.0, 0, Math.PI * 2)
         }
       }
+      ctx.fill()
 
       // 4. Shooting Stars / Meteors
       meteorTimer++
