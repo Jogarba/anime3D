@@ -391,9 +391,9 @@ function ResponsiveCamera({ progress }) {
   return null
 }
 
-function OfflineEnvironment() {
+function OfflineEnvironment({ isMobile }) {
   return (
-    <Environment resolution={64} frames={1} environmentIntensity={0.55}>
+    <Environment resolution={isMobile ? 32 : 64} frames={1} environmentIntensity={0.55}>
       <Lightformer intensity={2.4} position={[0, 4, -6]} scale={[10, 10, 1]} />
       <Lightformer intensity={1.4} position={[-5, 1, 2]} scale={[6, 6, 1]} />
       <Lightformer intensity={1.4} position={[5, 1, 2]} scale={[6, 6, 1]} />
@@ -413,9 +413,15 @@ export default function Scene({ progress }) {
   return (
     <div className="canvas-wrap" aria-hidden="true">
       <Canvas
-        dpr={isMobile ? [1, 1.25] : [1, 1.8]}
+        dpr={isMobile ? 1 : [1, 1.75]}
         camera={{ position: [0, 0, 7], fov: 35 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        gl={{
+          antialias: !isMobile,
+          alpha: true,
+          powerPreference: 'high-performance',
+          stencil: false,
+          depth: true,
+        }}
       >
         <ResponsiveCamera progress={progress} />
         <ambientLight intensity={0.65} />
@@ -424,15 +430,16 @@ export default function Scene({ progress }) {
         <Suspense fallback={null}>
           <AnimatedModel progress={progress} />
           <WaterParticleRipples />
-          <AmbientParticles count={isMobile ? 50 : 130} />
-          <OfflineEnvironment />
+          <AmbientParticles count={isMobile ? 35 : 130} />
+          <OfflineEnvironment isMobile={isMobile} />
           <ContactShadows
             position={[0, -2.2, 0]}
             opacity={0.24}
             scale={8}
-            blur={2.8}
+            blur={2.5}
             far={5}
-            resolution={isMobile ? 256 : 512}
+            frames={1}
+            resolution={isMobile ? 128 : 256}
           />
         </Suspense>
       </Canvas>

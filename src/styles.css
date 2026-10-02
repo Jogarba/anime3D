@@ -2331,5 +2331,40 @@ body {
   animation: pulse-dot 1.2s infinite ease-in-out;
 }
 
+/* ==========================================================================
+   Mobile Hardware Acceleration & GPU Layer Isolation
+   ========================================================================== */
+@media (max-width: 768px) {
+  .canvas-wrap,
+  .kinetic-grid-canvas {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  .portal-panel,
+  .hero-card,
+  .terminal-preview,
+  .telemetry-card,
+  .env-card,
+  .portal-cta-group {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    background: rgba(8, 14, 28, 0.88) !important;
+    contain: layout style paint;
+    transform: translateZ(0);
+  }
+
+  .nav-glass {
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    background: rgba(3, 7, 18, 0.90) !important;
+  }
+
+  .ambient-glow-orb {
+    filter: blur(45px) !important;
+    opacity: 0.3 !important;
+  }
+}
+
 
 

@@ -443,6 +443,11 @@ export default function LiquidGlassOrb({ opacity, isVisible }) {
       const elapsed = (now - startTime) * 0.001
       const ad = audioDataRef.current
 
+      if (opacity <= 0.005) {
+        animationFrame = requestAnimationFrame(render)
+        return
+      }
+
       gl.uniform2f(uRes, canvas.width, canvas.height)
       gl.uniform1f(uTime, elapsed)
       gl.uniform2f(uMouse, 0.0, 0.0)
