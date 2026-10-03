@@ -266,7 +266,15 @@ function AnimatedModel({ progress }) {
       const inCycle = sectionOffset - cycleIndex * SECTION_CYCLE
 
       if (cycleIndex >= SECTION_COUNT - 1) {
-        scrollRotZ = -(SECTION_COUNT - 1) * (Math.PI / 3)
+        // Last section: keep rotating through the exit fade (60° to final face)
+        const exitT = THREE.MathUtils.clamp(
+          (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE,
+          0,
+          1,
+        )
+        const smoothedT = THREE.MathUtils.smoothstep(exitT, 0, 1)
+        scrollRotZ =
+          -(SECTION_COUNT - 1) * (Math.PI / 3) - smoothedT * (Math.PI / 3)
       } else if (inCycle <= SECTION_HOLD_DISTANCE) {
         scrollRotZ = -cycleIndex * (Math.PI / 3)
       } else {
@@ -277,7 +285,7 @@ function AnimatedModel({ progress }) {
     } else if (p < OVERVIEW_ZOOM_OUT_END) {
       const zoomOutFactor = THREE.MathUtils.smoothstep(p, OVERVIEW_ZOOM_OUT_START, OVERVIEW_ZOOM_OUT_END)
       initialTurnY = THREE.MathUtils.lerp(Math.PI, Math.PI * 2, zoomOutFactor)
-      scrollRotZ = THREE.MathUtils.lerp(-(SECTION_COUNT - 1) * (Math.PI / 3), -Math.PI * 2, zoomOutFactor)
+      scrollRotZ = -Math.PI * 2
     } else {
       initialTurnY = Math.PI * 2
       scrollRotZ = -Math.PI * 2

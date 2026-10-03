@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createTimeline, animate, stagger } from 'animejs'
 import Scene from './components/Scene'
 import Loader from './components/Loader'
@@ -14,6 +14,8 @@ import {
   SECTION_CYCLE,
   TOTAL_SCROLL_PROGRESS,
   ZOOM_OUT_START,
+  OVERVIEW_ZOOM_OUT_END,
+  OVERVIEW_HOLD_END,
   LOGIN_ZOOM_START,
   LOGIN_ZOOM_END,
   getPortalTarget,
@@ -24,6 +26,72 @@ const clamp01 = (value) => Math.min(1, Math.max(0, value))
 const easeInOut = (value) => {
   const t = clamp01(value)
   return t * t * (3 - 2 * t)
+}
+
+const NAV_LINKS = [
+  { id: 'pipeline', label: 'Pipeline' },
+  { id: 'configure', label: 'Platform' },
+  { id: 'releases', label: 'Delivery' },
+  { id: 'security', label: 'Security' },
+  { id: 'operations', label: 'Observability' },
+  { id: 'business-case', label: 'Business Case' },
+]
+
+const IS_MOBILE = () => typeof window !== 'undefined' && window.innerWidth <= 900
+
+const getScrollRange = () => {
+  const doc = document.documentElement
+  return Math.max(0, doc.scrollHeight - doc.clientHeight)
+}
+
+// ---------------------------------------------------------------------------
+// Mobile timeline: sections live in the natural document flow. Each region
+// (spacer or section) declares the 3D-progress span it covers, so the scene
+// progress freezes while reading a section and advances through the spacer
+// gaps between sections (where the model rotates).
+// ---------------------------------------------------------------------------
+function buildMobileRegions(container) {
+  if (!container) return []
+  const regions = []
+  let top = container.getBoundingClientRect().top + window.scrollY
+  for (const el of Array.from(container.children)) {
+    if (!el.classList.contains('tl-spacer') && !el.classList.contains('portal-panel')) continue
+    const from = parseFloat(el.dataset.pFrom ?? '0')
+    const to = parseFloat(el.dataset.pTo ?? String(from))
+    regions.push({ top, height: el.offsetHeight, from, to })
+    top += el.offsetHeight
+  }
+  return regions
+}
+
+function progressFromRegions(scrollY, regions) {
+  if (!regions.length) return 0
+  if (scrollY <= regions[0].top) return regions[0].from
+  for (let i = 0; i < regions.length; i++) {
+    const r = regions[i]
+    if (scrollY < r.top + r.height) {
+      const f = r.height > 0 ? (scrollY - r.top) / r.height : 0
+      return r.from + (r.to - r.from) * clamp01(f)
+    }
+  }
+  return regions[regions.length - 1].to
+}
+
+function scrollYFromRegions(target, regions) {
+  if (!regions.length) return 0
+  if (target <= regions[0].from) return regions[0].top
+  for (let i = 0; i < regions.length; i++) {
+    const r = regions[i]
+    const lo = Math.min(r.from, r.to)
+    const hi = Math.max(r.from, r.to)
+    if (target >= lo && target <= hi) {
+      if (r.to === r.from) return r.top
+      const f = (target - r.from) / (r.to - r.from)
+      return r.top + r.height * clamp01(f)
+    }
+  }
+  const last = regions[regions.length - 1]
+  return last.top + last.height
 }
 
 function portalAtProgress(progress) {
@@ -118,6 +186,10 @@ export default function App() {
   const [loginVisible, setLoginVisible] = useState(false)
   const [scrollPercent, setScrollPercent] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(IS_MOBILE)
+  const isMobileRef = useRef(IS_MOBILE())
+  const mobileRegionsRef = useRef(null)
 
   const copyInstallCommand = () => {
     navigator.clipboard?.writeText('npm i -g @evolut/cli')
@@ -125,9 +197,89 @@ export default function App() {
     setTimeout(() => setCopied(false), 2400)
   }
 
+  // Track viewport mode and keep the mobile region map (spacers + sections) fresh
+  useEffect(() => {
+    let ro = null
+
+    const rebuild = () => {
+      const container = document.querySelector('.portal-content')
+      mobileRegionsRef.current = buildMobileRegions(container)
+    }
+
+    const onResize = () => {
+      const mobile = IS_MOBILE()
+      isMobileRef.current = mobile
+      setIsMobile(mobile)
+      setTimeout(rebuild, 30)
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(() => rebuild())
+    }
+    const container = document.querySelector('.portal-content')
+    if (ro && container) ro.observe(container)
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(rebuild)
+    }
+
+    window.addEventListener('resize', onResize)
+    rebuild()
+
+    return () => {
+      window.removeEventListener('resize', onResize)
+      if (ro) ro.disconnect()
+    }
+  }, [])
+
+  const scrollToProgress = (target, behavior = 'smooth') => {
+    let top
+    const regions = mobileRegionsRef.current
+    if (isMobileRef.current && regions && regions.length) {
+      top = scrollYFromRegions(target, regions)
+    } else {
+      const max = getScrollRange()
+      top = max > 0 ? (target / TOTAL_SCROLL_PROGRESS) * max : 0
+    }
+    window.scrollTo({ top, behavior })
+  }
+
+  // Lock page scroll while the mobile menu is open
+  useEffect(() => {
+    if (!menuOpen) return
+    const root = document.documentElement
+    const prevOverflow = root.style.overflow
+    root.style.overflow = 'hidden'
+    return () => {
+      root.style.overflow = prevOverflow
+    }
+  }, [menuOpen])
+
+  // Close the mobile menu with Escape or when resizing back to desktop
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    const onResize = () => {
+      if (!IS_MOBILE()) setMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onResize)
+    }
+  }, [menuOpen])
+
   const navigateToProgress = (event, target) => {
     event.preventDefault()
-    window.scrollTo({ top: target * window.innerHeight, behavior: 'smooth' })
+    scrollToProgress(target, 'smooth')
+  }
+
+  const handleMenuNav = (event, target) => {
+    event.preventDefault()
+    setMenuOpen(false)
+    setTimeout(() => scrollToProgress(target, 'smooth'), 80)
   }
   const portalTarget = (index) => {
     return getPortalTarget(index)
@@ -231,17 +383,26 @@ export default function App() {
 
     const apply = () => {
       const currentProgress = Math.min(progress.current, TOTAL_SCROLL_PROGRESS)
-      const active = portalAtProgress(currentProgress)
-      if (activePortalRef.current !== active.index) {
-        activePortalRef.current = active.index
-        setActivePortal(active.index)
+
+      if (isMobileRef.current) {
+        // Mobile: sections are in normal flow and always fully visible — no crossfade
+        root.style.setProperty('--portal-content-opacity', '1')
+      } else {
+        const active = portalAtProgress(currentProgress)
+        if (activePortalRef.current !== active.index) {
+          activePortalRef.current = active.index
+          setActivePortal(active.index)
+        }
+        root.style.setProperty(
+          '--portal-content-opacity',
+          String(active.opacity),
+        )
       }
-      root.style.setProperty(
-        '--portal-content-opacity',
-        String(active.opacity),
-      )
-      
-      setScrollPercent(Math.min(100, Math.round((progress.current / (TOTAL_SCROLL_PROGRESS + 1.2)) * 100)))
+
+      // Solid navbar backdrop once scrolled past the hero (mobile readability)
+      root.dataset.navScrolled = window.scrollY > 24 ? '1' : '0'
+
+      setScrollPercent(Math.min(100, Math.round((progress.current / TOTAL_SCROLL_PROGRESS) * 100)))
 
       // Hero view disappears immediately as soon as user starts scrolling
       const heroOpacity = clamp01(1 - progress.current / 0.22)
@@ -290,7 +451,16 @@ export default function App() {
     }
 
     const onScroll = () => {
-      raw = window.scrollY / Math.max(window.innerHeight, 1)
+      const regions = mobileRegionsRef.current
+      if (isMobileRef.current && regions && regions.length) {
+        // Mobile: piecewise mapping over the in-flow sections + spacers
+        raw = progressFromRegions(window.scrollY, regions)
+      } else {
+        // Desktop: linear over the real scrollable range, so mobile URL-bar
+        // collapse/resize never makes the 3D timeline jump.
+        const max = getScrollRange()
+        raw = max > 0 ? (window.scrollY / max) * TOTAL_SCROLL_PROGRESS : 0
+      }
       if (!frame) {
         last = performance.now()
         frame = requestAnimationFrame(loop)
@@ -339,54 +509,17 @@ export default function App() {
           <span>EVOLUT</span>
         </a>
         <nav aria-label="Main navigation">
-          <a
-            href="#pipeline"
-            className={activePortal === 0 ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === 0 ? 'true' : undefined}
-            onClick={(event) => navigateToProgress(event, portalTarget(0))}
-          >
-            Pipeline
-          </a>
-          <a
-            href="#configure"
-            className={activePortal === 1 ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === 1 ? 'true' : undefined}
-            onClick={(event) => navigateToProgress(event, portalTarget(1))}
-          >
-            Platform
-          </a>
-          <a
-            href="#releases"
-            className={activePortal === 2 ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === 2 ? 'true' : undefined}
-            onClick={(event) => navigateToProgress(event, portalTarget(2))}
-          >
-            Delivery
-          </a>
-          <a
-            href="#security"
-            className={activePortal === 3 ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === 3 ? 'true' : undefined}
-            onClick={(event) => navigateToProgress(event, portalTarget(3))}
-          >
-            Security
-          </a>
-          <a
-            href="#operations"
-            className={activePortal === 4 ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === 4 ? 'true' : undefined}
-            onClick={(event) => navigateToProgress(event, portalTarget(4))}
-          >
-            Observability
-          </a>
-          <a
-            href="#business-case"
-            className={activePortal === 5 ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === 5 ? 'true' : undefined}
-            onClick={(event) => navigateToProgress(event, portalTarget(5))}
-          >
-            Business Case
-          </a>
+          {NAV_LINKS.map((link, index) => (
+            <a
+              key={link.id}
+              href={`#${link.id}`}
+              className={activePortal === index ? 'site-nav__link--active' : ''}
+              aria-current={activePortal === index ? 'true' : undefined}
+              onClick={(event) => navigateToProgress(event, portalTarget(index))}
+            >
+              {link.label}
+            </a>
+          ))}
         </nav>
         <div className="site-nav__actions">
           <a
@@ -409,6 +542,18 @@ export default function App() {
             Book a demo <span aria-hidden="true">↗</span>
           </a>
         </div>
+        <button
+          type="button"
+          className={`site-nav__burger${menuOpen ? ' site-nav__burger--open' : ''}`}
+          aria-label={menuOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-menu"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
       </header>
 
       {/* Permanent Fixed Background Hex Pattern for ALL pages */}
@@ -486,22 +631,80 @@ export default function App() {
       */}
     </main>
 
-    {/* Portal section content — OUTSIDE main to avoid overflow:clip clipping */}
+    {/* Mobile fullscreen navigation menu — mirrors the desktop navbar */}
+    <div
+      id="mobile-menu"
+      className={`mobile-menu${menuOpen ? ' mobile-menu--open' : ''}`}
+      aria-hidden={!menuOpen}
+      aria-label="Menú de navegación móvil"
+    >
+      <nav aria-label="Secciones">
+        {NAV_LINKS.map((link, index) => (
+          <a
+            key={link.id}
+            href={`#${link.id}`}
+            className="mobile-menu__link"
+            tabIndex={menuOpen ? 0 : -1}
+            onClick={(event) => handleMenuNav(event, portalTarget(index))}
+          >
+            <span className="mobile-menu__link-title">{link.label}</span>
+            <span className="mobile-menu__link-num">{String(index + 1).padStart(2, '0')}</span>
+          </a>
+        ))}
+      </nav>
+      <div className="mobile-menu__actions">
+        <a
+          className="mobile-menu__btn mobile-menu__btn--primary"
+          href="#login"
+          tabIndex={menuOpen ? 0 : -1}
+          onClick={(event) => handleMenuNav(event, getLoginTarget())}
+        >
+          Start <span aria-hidden="true">→</span>
+        </a>
+        <a
+          className="mobile-menu__btn mobile-menu__btn--ghost"
+          href="https://evolut.cloud/"
+          target="_blank"
+          rel="noreferrer"
+          tabIndex={menuOpen ? 0 : -1}
+        >
+          Book a demo <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+      <p className="mobile-menu__foot">© 2026 Evolut Premium Solutions Inc.</p>
+    </div>
+
+    {/* Portal section content — OUTSIDE main to avoid overflow:clip clipping.
+        Desktop: fixed overlay with crossfade. Mobile: normal page flow with
+        spacers that drive the 3D transitions between sections. */}
     <div className="portal-content" aria-live="polite">
+      <div
+        className="tl-spacer"
+        aria-hidden="true"
+        style={{ height: `${INITIAL_ZOOM_DISTANCE * 100}svh` }}
+        data-p-from="0"
+        data-p-to={String(INITIAL_ZOOM_DISTANCE)}
+      />
 
       {landingSections.map((section, index) => {
         const active = activePortal === index
         const isBusinessCase = section.id === 'business-case'
+        // Freeze the scene at the END of the hold so the rotation spacer starts
+        // exactly when the section content ends (no dead scroll in between).
+        const sectionProgress =
+          INITIAL_ZOOM_DISTANCE + index * SECTION_CYCLE + SECTION_HOLD_DISTANCE
 
         return (
-          <section
-            key={section.id}
-            id={section.id}
-            className={`portal-panel${active ? ' portal-panel--active' : ''}${isBusinessCase ? ' portal-panel--wide' : ''}`}
-            aria-labelledby={`${section.id}-title`}
-            aria-hidden={!active}
-            hidden={!active}
-          >
+          <Fragment key={section.id}>
+            <section
+              id={section.id}
+              className={`portal-panel${active ? ' portal-panel--active' : ''}${isBusinessCase ? ' portal-panel--wide' : ''}`}
+              aria-labelledby={`${section.id}-title`}
+              aria-hidden={!isMobile && !active}
+              hidden={!isMobile && !active}
+              data-p-from={String(sectionProgress)}
+              data-p-to={String(sectionProgress)}
+            >
             <div className={`portal-panel__inner${isBusinessCase ? ' portal-panel__inner--2col' : ''}`}>
               {isBusinessCase ? (
                 <>
@@ -716,8 +919,55 @@ export default function App() {
               )}
             </div>
           </section>
+
+            {/* Mobile-only: short gap where the 3D model rotates to the next section */}
+            <div
+              className="tl-spacer"
+              aria-hidden="true"
+              style={{ height: `${SECTION_TRANSITION_DISTANCE * 100}svh` }}
+              data-p-from={String(sectionProgress)}
+              data-p-to={String(sectionProgress + SECTION_TRANSITION_DISTANCE)}
+            />
+          </Fragment>
         )
       })}
+
+      {/* Mobile-only: post-sections choreography (zoom out → overview → login) */}
+      <div
+        className="tl-spacer"
+        aria-hidden="true"
+        style={{ height: `${(OVERVIEW_ZOOM_OUT_END - ZOOM_OUT_START) * 100}svh` }}
+        data-p-from={String(ZOOM_OUT_START)}
+        data-p-to={String(OVERVIEW_ZOOM_OUT_END)}
+      />
+      <div
+        className="tl-spacer"
+        aria-hidden="true"
+        style={{ height: `${(OVERVIEW_HOLD_END - OVERVIEW_ZOOM_OUT_END) * 100}svh` }}
+        data-p-from={String(OVERVIEW_ZOOM_OUT_END)}
+        data-p-to={String(OVERVIEW_HOLD_END)}
+      />
+      <div
+        className="tl-spacer"
+        aria-hidden="true"
+        style={{ height: `${(LOGIN_ZOOM_END - LOGIN_ZOOM_START) * 100}svh` }}
+        data-p-from={String(LOGIN_ZOOM_START)}
+        data-p-to={String(LOGIN_ZOOM_END)}
+      />
+      <div
+        className="tl-spacer"
+        aria-hidden="true"
+        style={{ height: `${(TOTAL_SCROLL_PROGRESS - LOGIN_ZOOM_END) * 100}svh` }}
+        data-p-from={String(LOGIN_ZOOM_END)}
+        data-p-to={String(TOTAL_SCROLL_PROGRESS)}
+      />
+      <div
+        className="tl-spacer"
+        aria-hidden="true"
+        style={{ height: '60svh' }}
+        data-p-from={String(TOTAL_SCROLL_PROGRESS)}
+        data-p-to={String(TOTAL_SCROLL_PROGRESS)}
+      />
     </div>
 
     {/* Interactive Liquid Glass Orb based on LerSent001/orb */}

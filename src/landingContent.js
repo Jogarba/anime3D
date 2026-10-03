@@ -110,9 +110,8 @@ export const landingSections = [
     ],
     costNote:
       'Every week your team spends on infrastructure is a week not spent on product. Evolut eliminates that cost permanently.',
-    cta: 'Book a Free Demo Now',
-    ctaNote: '30-minute session · No commitment · See your environment live',
+    cta: 'Book a Free Demo Now'
   },
 ]
 
-
+
