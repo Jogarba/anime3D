@@ -6,7 +6,6 @@ import ErrorBoundary from './components/ErrorBoundary'
 import KineticGrid from './components/KineticGrid'
 import { landingSections } from './landingContent'
 import LiquidGlassOrb from './components/LiquidGlassOrb'
-import LoginForm from './components/LoginForm'
 import {
   SECTION_COUNT,
   INITIAL_ZOOM_DISTANCE,
@@ -21,7 +20,6 @@ import {
   getLoginTarget,
 } from './sceneSequence'
 
-const SCROLL_UNIT_MS = 1000
 const clamp01 = (value) => Math.min(1, Math.max(0, value))
 const easeInOut = (value) => {
   const t = clamp01(value)
@@ -341,12 +339,54 @@ export default function App() {
           <span>EVOLUT</span>
         </a>
         <nav aria-label="Main navigation">
-          <a href="#pipeline" onClick={(event) => navigateToProgress(event, portalTarget(0))}>Pipeline</a>
-          <a href="#configure" onClick={(event) => navigateToProgress(event, portalTarget(1))}>Platform</a>
-          <a href="#releases" onClick={(event) => navigateToProgress(event, portalTarget(2))}>Delivery</a>
-          <a href="#security" onClick={(event) => navigateToProgress(event, portalTarget(3))}>Security</a>
-          <a href="#operations" onClick={(event) => navigateToProgress(event, portalTarget(4))}>Observability</a>
-          <a href="#business-case" onClick={(event) => navigateToProgress(event, portalTarget(5))}>Business Case</a>
+          <a
+            href="#pipeline"
+            className={activePortal === 0 ? 'site-nav__link--active' : ''}
+            aria-current={activePortal === 0 ? 'true' : undefined}
+            onClick={(event) => navigateToProgress(event, portalTarget(0))}
+          >
+            Pipeline
+          </a>
+          <a
+            href="#configure"
+            className={activePortal === 1 ? 'site-nav__link--active' : ''}
+            aria-current={activePortal === 1 ? 'true' : undefined}
+            onClick={(event) => navigateToProgress(event, portalTarget(1))}
+          >
+            Platform
+          </a>
+          <a
+            href="#releases"
+            className={activePortal === 2 ? 'site-nav__link--active' : ''}
+            aria-current={activePortal === 2 ? 'true' : undefined}
+            onClick={(event) => navigateToProgress(event, portalTarget(2))}
+          >
+            Delivery
+          </a>
+          <a
+            href="#security"
+            className={activePortal === 3 ? 'site-nav__link--active' : ''}
+            aria-current={activePortal === 3 ? 'true' : undefined}
+            onClick={(event) => navigateToProgress(event, portalTarget(3))}
+          >
+            Security
+          </a>
+          <a
+            href="#operations"
+            className={activePortal === 4 ? 'site-nav__link--active' : ''}
+            aria-current={activePortal === 4 ? 'true' : undefined}
+            onClick={(event) => navigateToProgress(event, portalTarget(4))}
+          >
+            Observability
+          </a>
+          <a
+            href="#business-case"
+            className={activePortal === 5 ? 'site-nav__link--active' : ''}
+            aria-current={activePortal === 5 ? 'true' : undefined}
+            onClick={(event) => navigateToProgress(event, portalTarget(5))}
+          >
+            Business Case
+          </a>
         </nav>
         <div className="site-nav__actions">
           <a

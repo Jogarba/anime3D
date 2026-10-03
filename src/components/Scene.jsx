@@ -1,6 +1,6 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, Float, Lightformer } from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer } from '@react-three/drei'
 import * as THREE from 'three'
 import Model from './Model'
 import {
@@ -9,15 +9,11 @@ import {
   SECTION_HOLD_DISTANCE,
   SECTION_TRANSITION_DISTANCE,
   SECTION_CYCLE,
-  SECTIONS_END,
   OVERVIEW_ZOOM_OUT_START,
   OVERVIEW_ZOOM_OUT_END,
-  OVERVIEW_HOLD_END,
   LOGIN_ZOOM_START,
   LOGIN_ZOOM_END,
 } from '../sceneSequence'
-
-const PORTAL_LOOK_AWAY_START = 0.96
 
 function AmbientParticles({ count = 130 }) {
   const points = useRef(null)
@@ -393,15 +389,16 @@ function ResponsiveCamera({ progress }) {
 
 function OfflineEnvironment({ isMobile }) {
   return (
-    <Environment resolution={isMobile ? 32 : 64} frames={1} environmentIntensity={0.55}>
-      <Lightformer intensity={2.4} position={[0, 4, -6]} scale={[10, 10, 1]} />
-      <Lightformer intensity={1.4} position={[-5, 1, 2]} scale={[6, 6, 1]} />
-      <Lightformer intensity={1.4} position={[5, 1, 2]} scale={[6, 6, 1]} />
+    <Environment resolution={isMobile ? 32 : 64} frames={1} environmentIntensity={1.35}>
+      <Lightformer intensity={4.5} position={[0, 6, -6]} scale={[14, 14, 1]} color="#ffffff" />
+      <Lightformer intensity={3.0} position={[-6, 3, 4]} scale={[10, 10, 1]} color="#7dd3fc" />
+      <Lightformer intensity={3.0} position={[6, 3, 4]} scale={[10, 10, 1]} color="#a78bfa" />
       <Lightformer
-        intensity={0.8}
-        position={[0, -4, 2]}
-        scale={[10, 2, 1]}
+        intensity={2.2}
+        position={[0, -4, 4]}
+        scale={[14, 4, 1]}
         rotation-x={Math.PI / 2}
+        color="#e0f2fe"
       />
     </Environment>
   )
@@ -424,9 +421,12 @@ export default function Scene({ progress }) {
         }}
       >
         <ResponsiveCamera progress={progress} />
-        <ambientLight intensity={0.65} />
-        <directionalLight position={[4, 5, 6]} intensity={2.2} />
-        <pointLight position={[-4, 1, 3]} intensity={1.4} />
+        <ambientLight intensity={0.95} />
+        <directionalLight position={[4, 6, 6]} intensity={3.4} color="#ffffff" />
+        <directionalLight position={[-4, -3, 4]} intensity={1.6} color="#bae6fd" />
+        <pointLight position={[0, 1, 4.5]} intensity={2.6} color="#ffffff" />
+        <pointLight position={[-4, 2, 4]} intensity={2.2} color="#38bdf8" />
+        <pointLight position={[4, -2, 3]} intensity={1.8} color="#818cf8" />
         <Suspense fallback={null}>
           <AnimatedModel progress={progress} />
           <WaterParticleRipples />

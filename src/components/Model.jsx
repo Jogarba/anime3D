@@ -1,209 +1,203 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { TOTAL_SCROLL_PROGRESS, INITIAL_ZOOM_DISTANCE } from '../sceneSequence'
+import { TOTAL_SCROLL_PROGRESS } from '../sceneSequence'
 
-// Evolutionary chromatic palettes that smoothly morph the 3D model as you scroll
+// High-gloss mirror metal chromatic palettes with seamless circular wrapping
 export const EVOLUTION_STAGES = [
   {
-    name: 'Cyber Sapphire',
-    pos: 0.0,
-    coreColor: new THREE.Color('#e8ecf8'),
-    circuitColor: new THREE.Color('#2563eb'),
-    emissiveColor: new THREE.Color('#1d4ed8'),
-    emissiveIntensity: 0.55,
-    metalness: 0.86,
-    roughness: 0.16,
-    clearcoatRoughness: 0.06,
+    name: 'Electric Aurora Titanium',
+    coreColor: new THREE.Color('#00e5ff'),
+    emissiveColor: new THREE.Color('#6366f1'),
+    angle: 0.785, // 45° Top-Right to Bottom-Left
   },
   {
-    name: 'Quantum Cyan',
-    pos: 0.16,
-    coreColor: new THREE.Color('#0369a1'),
-    circuitColor: new THREE.Color('#38bdf8'),
-    emissiveColor: new THREE.Color('#0284c7'),
-    emissiveIntensity: 1.05,
-    metalness: 0.92,
-    roughness: 0.11,
-    clearcoatRoughness: 0.04,
+    name: 'Hyper-Neon Cyber Magenta',
+    coreColor: new THREE.Color('#ff007f'),
+    emissiveColor: new THREE.Color('#f43f5e'),
+    angle: 2.356, // 135° Top-Left to Bottom-Right
   },
   {
-    name: 'Matrix Emerald',
-    pos: 0.33,
-    coreColor: new THREE.Color('#064e3b'),
-    circuitColor: new THREE.Color('#34d399'),
+    name: 'Toxic Venom Emerald Chrome',
+    coreColor: new THREE.Color('#00ff88'),
     emissiveColor: new THREE.Color('#10b981'),
-    emissiveIntensity: 1.15,
-    metalness: 0.90,
-    roughness: 0.12,
-    clearcoatRoughness: 0.04,
+    angle: -0.85, // Diagonal Bottom-Left
   },
   {
-    name: 'Solar Gold',
-    pos: 0.50,
-    coreColor: new THREE.Color('#78350f'),
-    circuitColor: new THREE.Color('#fbbf24'),
-    emissiveColor: new THREE.Color('#f59e0b'),
-    emissiveIntensity: 1.25,
-    metalness: 0.94,
-    roughness: 0.09,
-    clearcoatRoughness: 0.03,
+    name: 'Imperial Molten 24K Gold',
+    coreColor: new THREE.Color('#ffb703'),
+    emissiveColor: new THREE.Color('#fb5607'),
+    angle: 1.57, // 90° Top to Bottom
   },
   {
-    name: 'Laser Crimson',
-    pos: 0.66,
-    coreColor: new THREE.Color('#831843'),
-    circuitColor: new THREE.Color('#f43f5e'),
-    emissiveColor: new THREE.Color('#e11d48'),
-    emissiveIntensity: 1.35,
-    metalness: 0.93,
-    roughness: 0.10,
-    clearcoatRoughness: 0.03,
+    name: 'Ultra-Violet Cosmic Nebula',
+    coreColor: new THREE.Color('#9d4edd'),
+    emissiveColor: new THREE.Color('#c77dff'),
+    angle: -2.356, // Opposite Diagonal
   },
   {
-    name: 'Cosmic Violet',
-    pos: 0.83,
-    coreColor: new THREE.Color('#3b0764'),
-    circuitColor: new THREE.Color('#c084fc'),
-    emissiveColor: new THREE.Color('#9333ea'),
-    emissiveIntensity: 1.28,
-    metalness: 0.91,
-    roughness: 0.11,
-    clearcoatRoughness: 0.04,
-  },
-  {
-    name: 'Prismatic Diamond',
-    pos: 1.0,
-    coreColor: new THREE.Color('#f8fafc'),
-    circuitColor: new THREE.Color('#60a5fa'),
-    emissiveColor: new THREE.Color('#38bdf8'),
-    emissiveIntensity: 1.05,
-    metalness: 0.96,
-    roughness: 0.07,
-    clearcoatRoughness: 0.02,
+    name: 'Chameleon Prismatic Shock',
+    coreColor: new THREE.Color('#06d6a0'),
+    emissiveColor: new THREE.Color('#ff006e'),
+    angle: 0.0, // Horizontal Left to Right
   },
 ]
 
 export default function Model({ groupRef, progress }) {
-  const { scene } = useGLTF('/models/model.glb')
+  const { scene } = useGLTF('/models/logo_hexagonal_3d_rect.glb')
 
-  const { coreMat, circuitMat } = useMemo(() => {
+  const waveUniforms = useMemo(
+    () => ({
+      u_waveProgress: { value: 0.0 },
+      u_waveAngle: { value: 0.785 },
+      u_colorA: { value: new THREE.Color('#00e5ff') },
+      u_colorB: { value: new THREE.Color('#ff007f') },
+      u_emissiveA: { value: new THREE.Color('#6366f1') },
+      u_emissiveB: { value: new THREE.Color('#f43f5e') },
+      u_waveWidth: { value: 0.32 },
+      u_emissiveIntensity: { value: 0.85 },
+    }),
+    []
+  )
+
+  const { coreMat } = useMemo(() => {
     const cMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color('#e8ecf8'),
-      emissive: new THREE.Color('#1d4ed8'),
-      emissiveIntensity: 0.45,
-      metalness: 0.86,
-      roughness: 0.16,
+      color: new THREE.Color('#00e5ff'),
+      emissive: new THREE.Color('#6366f1'),
+      emissiveIntensity: 0.85,
+      metalness: 1.0,
+      roughness: 0.015,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.06,
-      reflectivity: 0.95,
-      envMapIntensity: 1.8,
-    })
-
-    const circMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color('#2563eb'),
-      emissive: new THREE.Color('#1d4ed8'),
-      emissiveIntensity: 0.75,
-      metalness: 0.90,
-      roughness: 0.12,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.04,
+      clearcoatRoughness: 0.01,
       reflectivity: 1.0,
-      envMapIntensity: 2.2,
+      envMapIntensity: 4.8,
+      ior: 2.4,
     })
 
-    return { coreMat: cMat, circuitMat: circMat }
-  }, [])
+    cMat.onBeforeCompile = (shader) => {
+      shader.uniforms.u_waveProgress = waveUniforms.u_waveProgress
+      shader.uniforms.u_waveAngle = waveUniforms.u_waveAngle
+      shader.uniforms.u_colorA = waveUniforms.u_colorA
+      shader.uniforms.u_colorB = waveUniforms.u_colorB
+      shader.uniforms.u_emissiveA = waveUniforms.u_emissiveA
+      shader.uniforms.u_emissiveB = waveUniforms.u_emissiveB
+      shader.uniforms.u_waveWidth = waveUniforms.u_waveWidth
+      shader.uniforms.u_emissiveIntensity = waveUniforms.u_emissiveIntensity
+
+      shader.vertexShader = `
+        varying vec3 vModelPos;
+        ${shader.vertexShader}
+      `.replace(
+        '#include <begin_vertex>',
+        `
+        #include <begin_vertex>
+        vModelPos = position;
+        `
+      )
+
+      shader.fragmentShader = `
+        varying vec3 vModelPos;
+        uniform float u_waveProgress;
+        uniform float u_waveAngle;
+        uniform vec3 u_colorA;
+        uniform vec3 u_colorB;
+        uniform vec3 u_emissiveA;
+        uniform vec3 u_emissiveB;
+        uniform float u_waveWidth;
+        uniform float u_emissiveIntensity;
+        ${shader.fragmentShader}
+      `.replace(
+        '#include <color_fragment>',
+        `
+        #include <color_fragment>
+        float waveCoord = vModelPos.x * cos(u_waveAngle) + vModelPos.y * sin(u_waveAngle);
+        float normCoord = clamp((waveCoord + 35.0) / 70.0, 0.0, 1.0);
+        float waveDist = normCoord - u_waveProgress;
+        float waveT = smoothstep(-u_waveWidth, u_waveWidth, -waveDist);
+        diffuseColor.rgb = mix(u_colorA, u_colorB, waveT);
+        `
+      ).replace(
+        '#include <emissivemap_fragment>',
+        `
+        #include <emissivemap_fragment>
+        float waveCoordE = vModelPos.x * cos(u_waveAngle) + vModelPos.y * sin(u_waveAngle);
+        float normCoordE = clamp((waveCoordE + 35.0) / 70.0, 0.0, 1.0);
+        float waveDistE = normCoordE - u_waveProgress;
+        float waveTE = smoothstep(-u_waveWidth, u_waveWidth, -waveDistE);
+        
+        vec3 currentEmissive = mix(u_emissiveA, u_emissiveB, waveTE);
+        
+        // Radiant energetic wave front crest beam
+        float crest = exp(-pow(waveDistE / (u_waveWidth * 0.35), 2.0));
+        vec3 crestGlow = mix(vec3(1.0, 1.0, 1.0), currentEmissive, 0.35);
+        
+        totalEmissiveRadiance = currentEmissive * u_emissiveIntensity + crestGlow * (crest * 2.4);
+        `
+      )
+    }
+
+    return { coreMat: cMat }
+  }, [waveUniforms])
 
   useEffect(() => {
     if (!scene) return
-    let meshIndex = 0
     scene.traverse((child) => {
       if (child.isMesh) {
-        child.material = meshIndex === 0 ? coreMat : circuitMat
+        if (child.geometry) {
+          if (child.geometry.index) {
+            child.geometry = child.geometry.toNonIndexed()
+          }
+          child.geometry.deleteAttribute('color')
+          child.geometry.center()
+          child.geometry.computeVertexNormals()
+        }
+        child.material = coreMat
         child.castShadow = true
         child.receiveShadow = true
-        meshIndex++
       }
     })
-  }, [scene, coreMat, circuitMat])
+  }, [scene, coreMat])
 
-  // Working color caches
-  const currentCoreColor = useRef(new THREE.Color('#e8ecf8'))
-  const currentCircuitColor = useRef(new THREE.Color('#2563eb'))
-  const currentEmissiveColor = useRef(new THREE.Color('#1d4ed8'))
-  const targetCoreColor = useMemo(() => new THREE.Color(), [])
-  const targetCircuitColor = useMemo(() => new THREE.Color(), [])
-  const targetEmissiveColor = useMemo(() => new THREE.Color(), [])
-
-  useFrame((state, delta) => {
-    if (!coreMat || !circuitMat) return
+  useFrame((state) => {
+    if (!coreMat) return
 
     const currentP = progress?.current || 0
-    const scrollNorm = THREE.MathUtils.clamp(currentP / TOTAL_SCROLL_PROGRESS, 0, 1)
+    const scrollFactor = currentP / TOTAL_SCROLL_PROGRESS
     const time = state.clock.getElapsedTime()
 
-    // Smooth continuous chromatic morphing at the start / hero view
-    // Cycles seamlessly through the color evolution stages in real-time
-    const heroCycle = (time * 0.12) % 1.0
+    // Continuous wave progression (one sweeping wave every 3.8s)
+    const waveSpeed = 0.26
+    const globalProgress = (time * waveSpeed + scrollFactor * 3.0) % EVOLUTION_STAGES.length
+    
+    const stageIndex = Math.floor(globalProgress)
+    const nextIndex = (stageIndex + 1) % EVOLUTION_STAGES.length
+    const localT = globalProgress - stageIndex
 
-    // Hero influence is 1.0 at the beginning and smoothly transitions to scroll-driven as you scroll into sections
-    const heroWeight = Math.max(0, 1 - Math.min(1, currentP / (INITIAL_ZOOM_DISTANCE * 0.85)))
-    const norm = THREE.MathUtils.lerp(scrollNorm, heroCycle, heroWeight)
+    // Map local 0..1 to sweeping range -0.25 to 1.25 so the wave completely starts outside and exits the model
+    const sweepProgress = -0.25 + localT * 1.5
 
-    // Find enclosing evolution stages
-    let stageA = EVOLUTION_STAGES[0]
-    let stageB = EVOLUTION_STAGES[EVOLUTION_STAGES.length - 1]
+    const stageA = EVOLUTION_STAGES[stageIndex]
+    const stageB = EVOLUTION_STAGES[nextIndex]
 
-    for (let i = 0; i < EVOLUTION_STAGES.length - 1; i++) {
-      if (norm >= EVOLUTION_STAGES[i].pos && norm <= EVOLUTION_STAGES[i + 1].pos) {
-        stageA = EVOLUTION_STAGES[i]
-        stageB = EVOLUTION_STAGES[i + 1]
-        break
-      }
-    }
+    // Update wave shader uniforms
+    waveUniforms.u_waveProgress.value = sweepProgress
+    waveUniforms.u_waveAngle.value = stageB.angle
+    waveUniforms.u_colorA.value.copy(stageA.coreColor)
+    waveUniforms.u_colorB.value.copy(stageB.coreColor)
+    waveUniforms.u_emissiveA.value.copy(stageA.emissiveColor)
+    waveUniforms.u_emissiveB.value.copy(stageB.emissiveColor)
 
-    const range = Math.max(0.0001, stageB.pos - stageA.pos)
-    const rawFactor = (norm - stageA.pos) / range
-    const factor = THREE.MathUtils.smoothstep(rawFactor, 0, 1)
-
-    targetCoreColor.lerpColors(stageA.coreColor, stageB.coreColor, factor)
-    targetCircuitColor.lerpColors(stageA.circuitColor, stageB.circuitColor, factor)
-    targetEmissiveColor.lerpColors(stageA.emissiveColor, stageB.emissiveColor, factor)
-
-    const targetEmissiveIntensity = THREE.MathUtils.lerp(stageA.emissiveIntensity, stageB.emissiveIntensity, factor)
-    const targetMetalness = THREE.MathUtils.lerp(stageA.metalness, stageB.metalness, factor)
-    const targetRoughness = THREE.MathUtils.lerp(stageA.roughness, stageB.roughness, factor)
-    const targetClearcoatRoughness = THREE.MathUtils.lerp(stageA.clearcoatRoughness, stageB.clearcoatRoughness, factor)
-
-    const pulse = Math.sin(time * 2.2) * 0.12 + 1.0
-
-    const lerpSpeed = Math.min(1, delta * 6.5)
-    currentCoreColor.current.lerp(targetCoreColor, lerpSpeed)
-    currentCircuitColor.current.lerp(targetCircuitColor, lerpSpeed)
-    currentEmissiveColor.current.lerp(targetEmissiveColor, lerpSpeed)
-
-    coreMat.color.copy(currentCoreColor.current)
-    coreMat.emissive.copy(currentEmissiveColor.current)
-    coreMat.emissiveIntensity = THREE.MathUtils.lerp(coreMat.emissiveIntensity, targetEmissiveIntensity * 0.45 * pulse, lerpSpeed)
-    coreMat.metalness = THREE.MathUtils.lerp(coreMat.metalness, targetMetalness, lerpSpeed)
-    coreMat.roughness = THREE.MathUtils.lerp(coreMat.roughness, targetRoughness, lerpSpeed)
-    coreMat.clearcoatRoughness = THREE.MathUtils.lerp(coreMat.clearcoatRoughness, targetClearcoatRoughness, lerpSpeed)
-
-    circuitMat.color.copy(currentCircuitColor.current)
-    circuitMat.emissive.copy(currentEmissiveColor.current)
-    circuitMat.emissiveIntensity = THREE.MathUtils.lerp(circuitMat.emissiveIntensity, targetEmissiveIntensity * pulse, lerpSpeed)
-    circuitMat.metalness = THREE.MathUtils.lerp(circuitMat.metalness, targetMetalness, lerpSpeed)
-    circuitMat.roughness = THREE.MathUtils.lerp(circuitMat.roughness, targetRoughness, lerpSpeed)
-    circuitMat.clearcoatRoughness = THREE.MathUtils.lerp(circuitMat.clearcoatRoughness, targetClearcoatRoughness, lerpSpeed)
+    // Living breathing light pulse
+    const pulse = Math.sin(time * 2.2) * 0.15 + 0.85
+    waveUniforms.u_emissiveIntensity.value = pulse
   })
 
   return (
     <group ref={groupRef}>
-      <primitive object={scene} scale={0.05} rotation={[Math.PI / 2, 0, 0]} />
+      <primitive object={scene} scale={0.065} rotation={[0, 0, 0]} />
     </group>
   )
 }
 
-useGLTF.preload('/models/model.glb')
+useGLTF.preload('/models/logo_hexagonal_3d_rect.glb')

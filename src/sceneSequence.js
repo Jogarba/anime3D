@@ -1,13 +1,3 @@
-export const FIRST_PORTAL = { x: 0, y: 1.35 }
-
-export const PORTALS = [
-  { x: 1.21, y: 0.72 },
-  { x: 1.21, y: -0.67 },
-  { x: 0, y: -1.32 },
-  { x: -1.2, y: -0.67 },
-  { x: -1.2, y: 0.72 },
-]
-
 export const SECTION_COUNT = 6
 export const INITIAL_ZOOM_DISTANCE = 1.2
 export const SECTION_HOLD_DISTANCE = 1.3
@@ -32,16 +22,11 @@ export const LOGIN_ZOOM_END = LOGIN_ZOOM_START + 1.2 // 16.6
 export const LOGIN_HOLD_DISTANCE = 2.4
 export const LOGIN_END = LOGIN_ZOOM_END + LOGIN_HOLD_DISTANCE // 19.0
 
-// Backwards compatibility aliases
+// Backwards compatibility alias for App.jsx
 export const ZOOM_OUT_START = OVERVIEW_ZOOM_OUT_START
-export const ZOOM_OUT_END = OVERVIEW_ZOOM_OUT_END
-export const LOGIN_START = LOGIN_ZOOM_START
 
 // Total progress including all phases
 export const TOTAL_SCROLL_PROGRESS = LOGIN_END
-
-export const PASSAGE_ENTRY_Z = 2.45
-export const PORTAL_APPROACH_Z = 3.2
 
 export function getPortalTarget(index) {
   if (index <= 0) return INITIAL_ZOOM_DISTANCE
