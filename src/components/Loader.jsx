@@ -4,71 +4,70 @@ import { useProgress } from '@react-three/drei'
 const WORD = 'EVOLUT'
 const MINIMUM_LOADER_TIME = 1400
 const EXIT_HOLD_TIME = 500
+const SAFETY_TIMEOUT = 4000
 
 export default function Loader() {
   const { active, progress, errors } = useProgress()
   const [typedCount, setTypedCount] = useState(0)
-  const [isReady, setIsReady] = useState(false)
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false)
   const [isRemoved, setIsRemoved] = useState(false)
-  
-  const mountedAt = useRef(Date.now())
-  const ready = (!active && progress >= 100) || errors.length > 0
+  const [forceReady, setForceReady] = useState(false)
 
-  // Typewriter effect: reveal letter by letter
+  const assetsReady = forceReady || errors.length > 0 || (!active && progress >= 100)
+
   useEffect(() => {
     let index = 0
-    // Start typing shortly after mount
-    const startTimeout = setTimeout(() => {
-      const interval = setInterval(() => {
-        index++
+    let interval
+    const startTimeout = window.setTimeout(() => {
+      interval = window.setInterval(() => {
+        index += 1
         setTypedCount(index)
         if (index >= WORD.length) {
-          clearInterval(interval)
+          window.clearInterval(interval)
         }
-      }, 110) // 110ms per letter
-
-      return () => clearInterval(interval)
+      }, 110)
     }, 200)
 
-    return () => clearTimeout(startTimeout)
-  }, [])
-
-  // Minimum loader time
-  useEffect(() => {
-    const elapsed = Date.now() - mountedAt.current
-    const remaining = Math.max(0, MINIMUM_LOADER_TIME - elapsed)
-
-    const timer = setTimeout(() => {
-      setIsReady(true)
-    }, remaining)
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  // Smooth exit when both ready and minimum time elapsed
-  useEffect(() => {
-    if (isReady && ready) {
-      const exitTimer = setTimeout(() => {
-        setIsRemoved(true)
-      }, EXIT_HOLD_TIME)
-      return () => clearTimeout(exitTimer)
+    return () => {
+      window.clearTimeout(startTimeout)
+      if (interval) window.clearInterval(interval)
     }
-  }, [isReady, ready])
+  }, [])
+
+  useEffect(() => {
+    const minTimer = window.setTimeout(() => setMinTimeElapsed(true), MINIMUM_LOADER_TIME)
+    const safetyTimer = window.setTimeout(() => {
+      setMinTimeElapsed(true)
+      setForceReady(true)
+    }, SAFETY_TIMEOUT)
+
+    return () => {
+      window.clearTimeout(minTimer)
+      window.clearTimeout(safetyTimer)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!minTimeElapsed || !assetsReady) return undefined
+    const exitTimer = window.setTimeout(() => {
+      setIsRemoved(true)
+    }, EXIT_HOLD_TIME)
+    return () => window.clearTimeout(exitTimer)
+  }, [minTimeElapsed, assetsReady])
 
   if (isRemoved) return null
 
-  const isExiting = isReady && ready
+  const isExiting = minTimeElapsed && assetsReady
   const isTypingDone = typedCount >= WORD.length
 
   return (
     <div
       className={`minimal-loader ${isExiting ? 'minimal-loader--done' : ''}`}
       role="status"
-      aria-label="Cargando Evolut"
+      aria-label="Loading Evolut"
       aria-live="polite"
     >
       <div className="minimal-loader__content">
-        {/* Logo */}
         <div className="minimal-loader__logo-wrap">
           <img
             src="/assets/logo-white.png"
@@ -78,7 +77,6 @@ export default function Loader() {
           <div className="minimal-loader__glow" aria-hidden="true" />
         </div>
 
-        {/* Pure Letter-by-Letter Typewriter Wordmark (No containers, boxes or borders) */}
         <div className="minimal-loader__wordmark" aria-label={WORD}>
           {WORD.slice(0, typedCount).split('').map((letter, index) => (
             <span
@@ -88,7 +86,6 @@ export default function Loader() {
               {letter}
             </span>
           ))}
-          {/* Subtle glowing blinking typing cursor */}
           <span
             className={`minimal-loader__cursor ${isTypingDone ? 'minimal-loader__cursor--idle' : ''}`}
             aria-hidden="true"

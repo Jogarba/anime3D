@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-export default function KineticGrid() {
+export default function KineticGrid({ isMobile = false }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -15,8 +15,6 @@ export default function KineticGrid() {
     let ripples = []
     let meteors = []
     let clickSparks = []
-
-    const isMobile = window.innerWidth <= 768
     const spacing = isMobile ? 48 : 42
 
     // 1. Floating cyber dust / square & diamond particles
@@ -350,7 +348,7 @@ export default function KineticGrid() {
       window.removeEventListener('click', onClick)
       cancelAnimationFrame(animId)
     }
-  }, [])
+  }, [isMobile])
 
   return (
     <canvas

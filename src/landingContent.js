@@ -6,18 +6,18 @@ export const landingSections = [
     title: 'Production-grade Kubernetes. Ship fast. Ship secure.',
     description:
       'Your team writes code. We handle everything from deployment pipelines to secrets, monitoring, and scaling — automatically, on every push.',
-    flow: ['GIT PUSH', 'BUILD (12s)', 'SECURITY SCAN', 'REGISTRY', 'DEV', 'QA', 'PRODUCTION (LIVE)'],
+    flow: ['GIT PUSH', 'BUILD', 'SECURITY SCAN', 'REGISTRY', 'DEV', 'QA', 'PRODUCTION'],
     facts: [
-      '< 60s from git push to live running environment',
-      '99.99% guaranteed availability with automatic failover',
-      '0 manual secret management across all environments',
+      'Automated deployments from each git push',
+      'Automatic failover helps keep workloads available',
+      'Runtime secret injection keeps credentials out of source code',
     ],
     terminal: {
       command: 'git push origin main',
       steps: [
-        { label: 'Evolut Build', text: 'Building container image from source... done (11.8s)', status: 'success' },
-        { label: 'Evolut Security', text: 'Automated CVE & SAST dependency audit: 0 issues found', status: 'success' },
-        { label: 'Evolut Deploy', text: 'Promoting to Production cluster via GitOps → https://app.evolut.cloud', status: 'live' },
+        { label: 'Evolut Build', text: 'Example container build completed', status: 'success' },
+        { label: 'Evolut Security', text: 'Example CVE & SAST dependency audit completed', status: 'success' },
+        { label: 'Evolut Deploy', text: 'Example GitOps promotion to https://app.evolut.cloud', status: 'live' },
       ],
     },
   },
@@ -39,14 +39,14 @@ export const landingSections = [
     id: 'releases',
     number: '03',
     eyebrow: 'ZERO-TOUCH CONTINUOUS DELIVERY',
-    title: 'From commit to production in under 60 seconds.',
+    title: 'From commit to production through automated delivery.',
     description:
-      'Your pipeline builds, tests, pushes to your private registry, and deploys — triggered by a git push. All environments update in sync with zero downtime.',
+      'Your pipeline can build, test, push to a private registry, and deploy from a git push. Use staged releases to coordinate updates across environments.',
     flow: ['COMMIT', 'BUILD', 'TEST', 'REGISTRY', 'DEPLOY', 'LIVE'],
     environments: [
-      { name: 'Dev Environment', url: 'dev.evolut.cloud', version: 'v2.4.1', status: 'Live & Synced', ping: '11ms' },
-      { name: 'QA Staging', url: 'qa.evolut.cloud', version: 'v2.4.1', status: 'Tests Passing', ping: '14ms' },
-      { name: 'Production', url: 'app.evolut.cloud', version: 'v2.4.1', status: 'Zero-Downtime Rollout', ping: '9ms' },
+      { name: 'Dev Environment', url: 'dev.evolut.cloud', version: 'v2.4.1', status: 'Example status' },
+      { name: 'QA Staging', url: 'qa.evolut.cloud', version: 'v2.4.1', status: 'Example status' },
+      { name: 'Production', url: 'app.evolut.cloud', version: 'v2.4.1', status: 'Example status' },
     ],
     facts: [
       'Three fully isolated environments from a single configuration',
@@ -79,7 +79,7 @@ export const landingSections = [
       { metric: 'CPU Utilization', value: '18.4%', badge: 'Optimal', sub: 'Elastic auto-balancing', bar: '24%' },
       { metric: 'Memory Allocated', value: '342 MB', badge: 'Stable', sub: 'Across 4 active pods', bar: '42%' },
       { metric: 'Request Throughput', value: '14.2k /s', badge: 'Healthy', sub: 'p99 latency 12ms', bar: '78%' },
-      { metric: 'Cluster Uptime', value: '99.99%', badge: 'SLA Active', sub: 'Zero packet loss', bar: '99%' },
+      { metric: 'Cluster Uptime', value: '99.99%', badge: 'Example', sub: 'Illustrative metric', bar: '99%' },
     ],
     details: [
       { label: 'OBSERVABILITY', text: 'Full dashboards, log aggregation, and alerts provisioned per app automatically with Prometheus & Grafana.' },
@@ -95,13 +95,13 @@ export const landingSections = [
     description:
       'Evolut replaces the operational layer your apps need in production — pipelines, secrets, monitoring, and environments — so your engineers can focus on what they were hired to build.',
     stats: [
-      { value: '< 60s', label: 'From git push to live running environment' },
-      { value: '99.99%', label: 'Guaranteed availability with automatic failover' },
-      { value: '0 Secrets', label: 'Zero manual secret management across all environments' },
-      { value: '-45%', label: 'Average infrastructure spend vs self-managed' },
+      { value: 'Automated', label: 'Delivery workflows triggered from your git repository' },
+      { value: 'Resilient', label: 'Failover and recovery workflows for deployed services' },
+      { value: 'Protected', label: 'Runtime secrets kept out of source code' },
+      { value: 'Flexible', label: 'Scale resources to match workload demand' },
     ],
     comparisons: [
-      ['Deploy pipeline', 'Write YAML, configure CI/CD, debug build failures on your own time', 'Push to git. Live in under 60 seconds, every time.'],
+      ['Deploy pipeline', 'Write YAML, configure CI/CD, debug build failures on your own time', 'Connect a git repository and automate build and release steps.'],
       ['Secrets & security', 'Rotate by hand across services. Hope credentials never leak to git.', 'Vault-managed, auto-rotated, zero-touch. Nothing exposed.'],
       ['Observability', 'Build monitoring from scratch — Prometheus, Grafana, alerting pipelines', 'Full dashboards and alerts, provisioned per app automatically.'],
       ['Dev / QA / Prod', 'Clone and maintain every environment separately, for every app', 'Three fully isolated environments from a single configuration.'],
@@ -109,7 +109,7 @@ export const landingSections = [
       ['Networking & routing', 'Configure service mesh, ingress controllers, TLS certificates, and DNS yourself', 'Public URL on first deploy. Certificates and routing automatic.'],
     ],
     costNote:
-      'Every week your team spends on infrastructure is a week not spent on product. Evolut eliminates that cost permanently.',
+      'Spend less time maintaining infrastructure workflows and more time on product work.',
     cta: 'Book a Free Demo Now'
   },
 ]
