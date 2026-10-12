@@ -32,6 +32,8 @@ export default function App() {
   const [isSceneVisible, setIsSceneVisible] = useState(false)
   const [modelReady, setModelReady] = useState(false)
   const initialRevealProgress = useRef(0)
+  const footerRef = useRef(null)
+  const footerShownRef = useRef(false)
   const markModelReady = useCallback(() => setModelReady(true), [])
   const revealScene = useCallback(() => setIsSceneVisible(true), [])
   const revealLanding = useCallback(() => setIsInitialLoading(false), [])
@@ -65,6 +67,44 @@ export default function App() {
   } = useScrollChoreography(isMobileRef)
 
   usePortalAnimation(progress, isMobile, navigationAnimation)
+
+  useEffect(() => {
+    const footer = footerRef.current
+    const root = document.documentElement
+    if (!footer) return undefined
+
+    const syncFooterVisibility = () => {
+      const shouldShow = !isInitialLoading && !isDemoOpen && (
+        heroVisible || root.dataset.modelOverview === 'true'
+      )
+      if (shouldShow === footerShownRef.current) return
+
+      footerShownRef.current = shouldShow
+      const current = getComputedStyle(footer)
+      const from = {
+        opacity: current.opacity,
+        transform: current.transform === 'none' ? 'translate3d(0, 0, 0)' : current.transform,
+      }
+      footer.getAnimations().forEach((animation) => animation.cancel())
+
+      footer.animate(
+        shouldShow
+          ? [from, { opacity: 1, transform: 'translate3d(0, 0, 0)' }]
+          : [from, { opacity: 0, transform: 'translate3d(0, 12px, 0)' }],
+        {
+          duration: shouldShow ? 1200 : 500,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'forwards',
+        },
+      )
+    }
+
+    syncFooterVisibility()
+    const overviewObserver = new MutationObserver(syncFooterVisibility)
+    overviewObserver.observe(root, { attributes: true, attributeFilter: ['data-model-overview'] })
+
+    return () => overviewObserver.disconnect()
+  }, [heroVisible, isDemoOpen, isInitialLoading])
 
   const navigationTarget = isMobile
     ? getPortalSectionStart
@@ -171,7 +211,7 @@ export default function App() {
           portalTarget={navigationTarget}
         />
 
-        <footer className={`initial-watermark${heroVisible && !isDemoOpen ? ' initial-watermark--visible' : ''}`}>
+        <footer ref={footerRef} className="initial-watermark">
           <strong>Evolut</strong>
           <span><span className="initial-watermark__copyright-symbol">©</span> Soluciones Evolut Premium 2026</span>
           <p>Refinación de la infraestructura global</p>

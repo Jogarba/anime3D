@@ -10,6 +10,5 @@ export const NAV_LINKS = [
 
 export const EXTERNAL_LINKS = {
   LOGIN: 'https://console.evolut.cloud/login',
-  BOOK_DEMO: 'https://evolut.cloud/',
   INSTALL_CMD: 'npm i -g @evolut/cli',
 }

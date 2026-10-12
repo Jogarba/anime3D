@@ -2529,6 +2529,14 @@ body {
   pointer-events: none;
 }
 
+html .model-view--initial-loading > .initial-watermark {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate3d(0, 10px, 0);
+  transition: none;
+  animation: none;
+}
+
 .model-view--initial-loading > .blackout,
 .model-view--initial-loading > .scroll-track {
   visibility: hidden;
@@ -2555,9 +2563,17 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: clamp(-150px, -9vw, -48px);
-  width: clamp(48px, 9vw, 150px);
-  background: linear-gradient(to right, transparent, #010205);
+  left: clamp(-420px, -25vw, -180px);
+  width: clamp(180px, 25vw, 420px);
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(1, 2, 5, 0.08) 18%,
+    rgba(1, 2, 5, 0.38) 43%,
+    rgba(1, 2, 5, 0.78) 72%,
+    #010205 100%
+  );
+  filter: blur(12px);
   pointer-events: none;
 }
 
@@ -2575,7 +2591,9 @@ body {
   padding-left: 0.22em;
   text-shadow: 0 0 24px rgba(75, 142, 255, 0.38);
   opacity: 0;
-  transform: translate(-50%, -50%) scale(0.96);
+  transform: translate3d(-50%, -50%, 0) scale(0.96);
+  backface-visibility: hidden;
+  will-change: opacity, transform, clip-path;
   animation: loaderWordmarkReveal var(--loader-duration) linear forwards;
 }
 
@@ -2589,6 +2607,9 @@ body {
   display: grid;
   place-items: center;
   transform: translate(-50%, -50%);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  contain: paint;
   will-change: transform;
   animation: loaderWheelTravel var(--loader-duration) linear forwards;
 }
@@ -2599,7 +2620,8 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transform-origin: center;
+  transform-origin: center center;
+  transform: translateZ(0);
   will-change: transform;
   backface-visibility: hidden;
   animation: loaderWheelSpin var(--loader-duration) linear forwards;
@@ -4896,23 +4918,12 @@ body {
   max-width: min(420px, 48vw);
   pointer-events: none;
   opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 700ms ease, transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.initial-watermark--visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-html[data-model-overview='true'] .initial-watermark {
-  opacity: 1;
-  transform: translateY(0);
+  transform: translate3d(0, 12px, 0);
 }
 
 html[data-demo-open='true'] .initial-watermark {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translate3d(0, 12px, 0);
 }
 
 .initial-watermark strong {
@@ -4979,6 +4990,461 @@ html[data-demo-open='true'] .initial-watermark {
   .demo-overlay,
   .demo-modal {
     animation: none;
+  }
+}
+
+/* Final mobile art direction: compact navigation, readable editorial sections,
+   and no forced horizontal scrolling. */
+@media (max-width: 900px) {
+  .site-nav {
+    min-height: calc(66px + env(safe-area-inset-top, 0px));
+    padding: max(8px, env(safe-area-inset-top, 0px)) 18px 8px;
+    background: linear-gradient(180deg, rgba(3, 7, 16, 0.94), rgba(3, 7, 16, 0.68)) !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(140%) !important;
+    backdrop-filter: blur(18px) saturate(140%) !important;
+  }
+
+  .site-nav::before {
+    display: none;
+  }
+
+  .site-brand {
+    gap: 9px;
+    font-size: 1rem;
+  }
+
+  .site-brand__logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .site-brand span {
+    font-size: 1rem;
+  }
+
+  .site-nav__burger {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(9, 17, 32, 0.8);
+    border-color: rgba(125, 211, 252, 0.22);
+  }
+
+  .mobile-menu {
+    padding-top: calc(82px + env(safe-area-inset-top, 0px));
+    background: radial-gradient(ellipse at 50% 0%, rgba(15, 35, 68, 0.8), rgba(2, 5, 12, 0.98) 66%);
+  }
+
+  .portal-content {
+    overflow: clip;
+  }
+
+  .portal-panel {
+    padding: calc(76px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 30px)
+      calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-margin-top: 72px;
+  }
+
+  .portal-panel:not(.portal-panel--hero) {
+    background: linear-gradient(
+      180deg,
+      rgba(2, 5, 12, 0.12),
+      rgba(2, 5, 12, 0.58) 12%,
+      rgba(2, 5, 12, 0.58) 88%,
+      rgba(2, 5, 12, 0.12)
+    );
+  }
+
+  .portal-panel__inner {
+    max-width: 600px;
+    gap: 24px;
+    padding-bottom: 24px !important;
+  }
+
+  .portal-panel__eyebrow {
+    max-width: 100%;
+    justify-content: center;
+    padding: 6px 11px;
+    font-size: 0.62rem;
+    letter-spacing: 0.075em;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .portal-panel h2,
+  .portal-panel--wide .portal-panel__left > h2.tech-heading {
+    max-width: 18ch;
+    margin-inline: auto;
+    font-size: clamp(2rem, 8.2vw, 2.75rem) !important;
+    line-height: 1.08;
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .portal-panel__description {
+    max-width: 38ch;
+    margin-inline: auto;
+    font-size: clamp(0.98rem, 4vw, 1.08rem) !important;
+    line-height: 1.68;
+    text-align: center;
+  }
+
+  .portal-panel--hero .hero-container {
+    gap: 18px;
+    width: 100%;
+  }
+
+  .portal-panel--hero .hero-left {
+    gap: 14px;
+  }
+
+  .portal-panel--hero .hero-badge {
+    margin: 0 auto 2px;
+    max-width: 100%;
+    font-size: 0.6rem;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  .portal-panel--hero .hero-title {
+    max-width: 12ch;
+    min-height: 0;
+    margin-inline: auto;
+    font-size: clamp(2.55rem, 11vw, 4.15rem);
+    line-height: 1.02;
+  }
+
+  .portal-panel--hero .hero-subtitle {
+    max-width: 36ch;
+    min-height: 0;
+    margin: 0 auto;
+    font-size: 1rem;
+    line-height: 1.65;
+  }
+
+  .portal-panel--hero .hero-install {
+    gap: 10px;
+    margin-top: 2px;
+  }
+
+  .portal-panel--hero .hero-install__command {
+    max-width: 100%;
+    font-size: 0.72rem;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-panel--hero .hero-right {
+    gap: 12px;
+  }
+
+  .portal-panel--hero .hero-status-card {
+    padding: 13px 16px;
+  }
+
+  .portal-panel--hero .hero-terminal {
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .portal-panel--hero .hero-terminal__body {
+    padding: 14px 16px;
+  }
+
+  .portal-panel--hero .hero-terminal__logs > :nth-child(n + 4) {
+    display: none;
+  }
+
+  .portal-panel--hero .hero-metrics-card {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 15px 12px;
+  }
+
+  .portal-panel--hero .hero-metrics-label {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  .portal-panel--hero .hero-metric-pod {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .portal-panel--hero .hero-metric-pod__val {
+    font-size: clamp(0.88rem, 3.8vw, 1.1rem);
+  }
+
+  .portal-panel--hero .hero-metric-pod__lbl {
+    font-size: 0.55rem;
+    letter-spacing: 0.035em;
+  }
+
+  .portal-panel--hero .hero-stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .portal-panel--hero .hero-stat-item {
+    min-width: 0;
+    min-height: 74px;
+    padding: 10px 6px;
+    text-align: center;
+  }
+
+  .portal-panel--hero .hero-stat-item strong {
+    font-size: clamp(0.68rem, 2.8vw, 0.82rem);
+    line-height: 1.35;
+  }
+
+  .portal-panel--hero .hero-stat-item span {
+    font-size: 0.57rem;
+    line-height: 1.4;
+  }
+
+  .portal-panel .terminal-preview {
+    margin-top: 2px !important;
+    border-radius: 15px;
+  }
+
+  .portal-panel .terminal-preview > .portal-sample-label {
+    padding: 11px 14px 0;
+    font-size: 0.56rem;
+  }
+
+  .portal-panel .terminal-header {
+    min-height: 40px;
+    padding-inline: 12px;
+  }
+
+  .portal-panel .terminal-title {
+    font-size: 0.62rem;
+  }
+
+  .portal-panel .terminal-status {
+    font-size: 0.57rem;
+  }
+
+  .portal-panel .terminal-body {
+    padding: 14px 13px;
+    font-size: 0.7rem;
+    line-height: 1.6;
+  }
+
+  .portal-panel .terminal-steps-list {
+    gap: 8px;
+  }
+
+  .portal-panel .terminal-step {
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  .portal-panel .terminal-badge {
+    flex: 0 0 auto;
+    font-size: 0.58rem;
+  }
+
+  .portal-panel .terminal-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-panel .pipeline-flow,
+  .portal-panel .portal-facts {
+    justify-content: center;
+    gap: 9px;
+    margin-top: 4px;
+  }
+
+  .portal-panel .pipeline-flow li,
+  .portal-panel .portal-facts li {
+    max-width: 100%;
+    padding: 8px 11px !important;
+    font-size: 0.66rem;
+    line-height: 1.45;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-panel .portal-stats,
+  .portal-panel .portal-telemetry {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px 14px !important;
+    margin-top: 4px !important;
+  }
+
+  .portal-panel .portal-stats > div,
+  .portal-panel .telemetry-card {
+    min-width: 0;
+    padding: 14px 5px 12px !important;
+    text-align: center !important;
+  }
+
+  .portal-panel .portal-stats dt {
+    font-size: clamp(1.45rem, 7vw, 1.9rem) !important;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-panel .portal-stats dd {
+    margin-top: 7px;
+    font-size: 0.63rem !important;
+    letter-spacing: 0.06em;
+  }
+
+  .portal-panel .telemetry-card__value {
+    font-size: clamp(1.2rem, 6vw, 1.55rem);
+  }
+
+  .portal-panel .portal-details,
+  .portal-panel .portal-environments {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 5px !important;
+    margin-top: 4px !important;
+  }
+
+  .portal-panel .portal-details > div,
+  .portal-panel .env-card {
+    padding: 16px 4px 14px !important;
+    text-align: center !important;
+  }
+
+  .portal-panel .portal-details dt,
+  .portal-panel .env-card {
+    align-items: center !important;
+  }
+
+  .portal-panel .portal-details dd {
+    max-width: 38ch;
+    margin-inline: auto;
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+
+  .portal-panel .comparison-table-wrap {
+    overflow: visible !important;
+    margin-top: 4px !important;
+  }
+
+  .portal-panel .comparison-table {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .portal-panel .comparison-table thead {
+    display: none;
+  }
+
+  .portal-panel .comparison-table tbody {
+    display: grid;
+    gap: 18px;
+  }
+
+  .portal-panel .comparison-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    padding-bottom: 12px;
+  }
+
+  .portal-panel .comparison-table tbody th {
+    grid-column: 1 / -1;
+    padding: 0 0 8px;
+    color: #f4f8ff;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  .portal-panel .comparison-table tbody td {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 8px 7px;
+    color: #cbd8e8;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+
+  .portal-panel .comparison-table tbody td::before {
+    color: #7dd3fc;
+    font: 600 0.55rem var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .portal-panel .comparison-table tbody td:nth-of-type(1)::before {
+    content: 'Without Evolut';
+  }
+
+  .portal-panel .comparison-table tbody td:nth-of-type(2)::before {
+    content: 'With Evolut';
+  }
+
+  .portal-panel .portal-panel__right {
+    min-width: 0;
+  }
+
+  .portal-panel .portal-cta-group {
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .portal-panel .portal-cta,
+  .portal-panel .portal-cta-secondary {
+    width: min(100%, 340px);
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .portal-panel {
+    padding-inline: 18px !important;
+  }
+
+  .portal-panel--hero .hero-title {
+    font-size: clamp(2.45rem, 11.8vw, 3.4rem);
+  }
+
+  .portal-panel--hero .hero-stats-bar {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .portal-panel--hero .hero-stat-item {
+    min-height: 0;
+    padding: 11px 8px;
+  }
+
+  .portal-panel--hero .hero-stat-item strong {
+    font-size: 0.8rem;
+  }
+
+  .portal-panel--hero .hero-stat-item span {
+    font-size: 0.62rem;
+  }
+
+  .portal-panel .portal-stats,
+  .portal-panel .portal-telemetry {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-panel .comparison-table tbody tr {
+    gap: 2px;
+  }
+
+  .initial-watermark {
+    left: 16px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    max-width: 72vw;
   }
 }
 

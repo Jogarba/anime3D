@@ -46,7 +46,3 @@ export function getPortalSectionStart(index) {
 export function getPortalTarget(index) {
   return getPortalSectionStart(index) + SECTION_HOLD_DISTANCE - SECTION_CONTENT_GAP
 }
-
-export function getLoginTarget() {
-  return WARP_TRAVERSE_START
-}
