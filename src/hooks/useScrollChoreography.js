@@ -9,18 +9,20 @@ import {
   scrollYFromRegions,
 } from '../utils/mobileRegions'
 import {
-  SECTION_COUNT,
+  PORTAL_COUNT,
   INITIAL_ZOOM_DISTANCE,
   SECTION_HOLD_DISTANCE,
   SECTION_TRANSITION_DISTANCE,
   SECTION_CYCLE,
   TOTAL_SCROLL_PROGRESS,
   ZOOM_OUT_START,
+  OVERVIEW_ZOOM_OUT_END,
   WARP_APPROACH_START,
   WARP_TRAVERSE_START,
   WARP_TRAVERSE_END,
   WARP_EXIT_TRAVEL,
   WARP_TRIGGER_PROGRESS,
+  getPortalTarget,
 } from '../sceneSequence'
 import { EXTERNAL_LINKS } from '../constants/navigation'
 
@@ -62,10 +64,10 @@ export function portalAtProgress(progress) {
     }
   }
 
-  // Once zoomed in: 6 sections (0 to 5)
+  // Once zoomed in: the hero plus six product sections.
   const offset = progress - INITIAL_ZOOM_DISTANCE
   const rawCycle = offset / SECTION_CYCLE
-  const sectionIndex = Math.min(SECTION_COUNT - 1, Math.floor(rawCycle))
+  const sectionIndex = Math.min(PORTAL_COUNT - 1, Math.floor(rawCycle))
   const inCycle = offset - sectionIndex * SECTION_CYCLE
 
   // Past the end of section cycle (zoom out / login / footer area): completely hidden
@@ -74,16 +76,16 @@ export function portalAtProgress(progress) {
   }
 
   // Last section (Section 06 Business Case)
-  if (sectionIndex >= SECTION_COUNT - 1) {
+  if (sectionIndex >= PORTAL_COUNT - 1) {
     if (inCycle <= SECTION_HOLD_DISTANCE) {
-      return { index: SECTION_COUNT - 1, opacity: 1 }
+      return { index: PORTAL_COUNT - 1, opacity: 1 }
     }
     const exitT = (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE
     if (exitT >= 1) {
       return { index: -1, opacity: 0 }
     }
     return {
-      index: SECTION_COUNT - 1,
+      index: PORTAL_COUNT - 1,
       opacity: clamp01(1 - easeInOut(exitT)),
     }
   }
@@ -124,12 +126,19 @@ export function useScrollChoreography(isMobileRef) {
   const [warpVisible, setWarpVisible] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [isWarpingViaButton, setIsWarpingViaButton] = useState(false)
+  const [navigationTransition, setNavigationTransition] = useState({ phase: 'idle', sourceIndex: -1, targetIndex: -1 })
   const isRedirectingRef = useRef(false)
   const isWarpingViaButtonRef = useRef(false)
   const redirectTriggeredRef = useRef(false)
   const redirectTimerRef = useRef(null)
   const mobileRegionsRef = useRef(null)
   const warpFrameRef = useRef(0)
+  const directNavigationRef = useRef(null)
+  const directNavigationFrameRef = useRef(0)
+  const directNavigationActiveRef = useRef(false)
+  const navigationTransitionTimerRef = useRef(null)
+  const navigationAnimationRef = useRef({ active: false, progress: 0, targetIndex: 0 })
+  const navigationAnimationIdRef = useRef(0)
 
   const updateWarpVisibility = useCallback((visible) => {
     if (warpVisibleRef.current === visible) return
@@ -280,7 +289,12 @@ export function useScrollChoreography(isMobileRef) {
   }, [])
 
   // Smooth scroll helper
-  const scrollToProgress = useCallback((target, behavior = 'smooth') => {
+  const scrollToProgress = useCallback((target, behavior = 'smooth', direct = false, targetIndex = 0, direction = 'to-section') => {
+    if (direct && directNavigationRef.current) {
+      directNavigationRef.current(target, targetIndex, direction)
+      return
+    }
+
     let top
     const regions = mobileRegionsRef.current
     if (isMobileRef.current && regions && regions.length) {
@@ -300,6 +314,7 @@ export function useScrollChoreography(isMobileRef) {
     root.style.setProperty('--login-opacity', '0')
     root.style.setProperty('--scroll-percent', '0%')
     root.dataset.cameraCrossedCore = 'false'
+    root.dataset.modelOverview = 'true'
 
     let frame = 0
     let last = 0
@@ -308,15 +323,23 @@ export function useScrollChoreography(isMobileRef) {
       if (isRedirectingRef.current) return
 
       const currentProgress = Math.min(progress.current, TOTAL_SCROLL_PROGRESS)
+      const isModelOverview = currentProgress < 0.22 || (
+        currentProgress >= OVERVIEW_ZOOM_OUT_END && currentProgress < WARP_APPROACH_START
+      )
+      root.dataset.modelOverview = String(isModelOverview)
+      const navigatingHome = directNavigationActiveRef.current &&
+        navigationAnimationRef.current.direction === 'to-home'
+      const active = directNavigationActiveRef.current
+        ? { index: -1, opacity: 0 }
+        : portalAtProgress(currentProgress)
+      if (activePortalRef.current !== active.index) {
+        activePortalRef.current = active.index
+        setActivePortal(active.index)
+      }
 
       if (isMobileRef.current) {
         root.style.setProperty('--portal-content-opacity', '1')
       } else {
-        const active = portalAtProgress(currentProgress)
-        if (activePortalRef.current !== active.index) {
-          activePortalRef.current = active.index
-          setActivePortal(active.index)
-        }
         root.style.setProperty(
           '--portal-content-opacity',
           String(active.opacity),
@@ -338,7 +361,7 @@ export function useScrollChoreography(isMobileRef) {
       // Keep tunnel effects hidden until the camera has crossed the model core.
       let curWarpOpacity = 0
       const cameraCrossedCore = root.dataset.cameraCrossedCore === 'true'
-      if (progress.current >= WARP_TRAVERSE_START && cameraCrossedCore) {
+      if (!navigatingHome && progress.current >= WARP_TRAVERSE_START && cameraCrossedCore) {
         curWarpOpacity = clamp01(
           (progress.current - WARP_TRAVERSE_START) /
           (WARP_TRAVERSE_END - WARP_TRAVERSE_START),
@@ -348,7 +371,7 @@ export function useScrollChoreography(isMobileRef) {
       updateWarpVisibility(curWarpOpacity > 0.02)
 
       // Breakthrough trigger: once the camera traverses through the 3D model core into portal
-      if (progress.current >= WARP_TRIGGER_PROGRESS) {
+      if (!navigatingHome && progress.current >= WARP_TRIGGER_PROGRESS) {
         if (!redirectTriggeredRef.current) {
           redirectTriggeredRef.current = true
           beginRedirect()
@@ -374,7 +397,7 @@ export function useScrollChoreography(isMobileRef) {
 
       // Avatar orb opacity
       let curLoginOpacity = 0
-      if (progress.current >= WARP_TRAVERSE_START && cameraCrossedCore) {
+      if (!navigatingHome && progress.current >= WARP_TRAVERSE_START && cameraCrossedCore) {
         curLoginOpacity = clamp01(
           easeInOut(
             (progress.current - WARP_TRAVERSE_START) /
@@ -412,7 +435,7 @@ export function useScrollChoreography(isMobileRef) {
     }
 
     const syncScrollProgress = () => {
-      if (isRedirectingRef.current || redirectTriggeredRef.current) return
+      if (isRedirectingRef.current || redirectTriggeredRef.current || directNavigationActiveRef.current) return
       const regions = mobileRegionsRef.current
       if (isMobileRef.current && regions && regions.length) {
         rawProgressRef.current = progressFromRegions(window.scrollY, regions)
@@ -427,6 +450,128 @@ export function useScrollChoreography(isMobileRef) {
         last = performance.now()
         frame = requestAnimationFrame(loop)
       }
+    }
+
+    directNavigationRef.current = (target, targetIndex = 0, direction = 'to-section') => {
+      if (directNavigationFrameRef.current) {
+        cancelAnimationFrame(directNavigationFrameRef.current)
+      }
+
+      if (direction === 'to-home') {
+        if (warpFrameRef.current) cancelAnimationFrame(warpFrameRef.current)
+        warpFrameRef.current = 0
+        redirectTriggeredRef.current = false
+        isRedirectingRef.current = false
+        isWarpingViaButtonRef.current = false
+        setIsRedirecting(false)
+        setIsWarpingViaButton(false)
+        setWarpRedirected(false)
+        updateWarpVisibility(false)
+        setLoginVisible(false)
+        loginVisibleRef.current = false
+        root.style.setProperty('--warp-opacity', '0')
+        root.style.setProperty('--login-opacity', '0')
+      }
+
+      const max = getScrollRange()
+      const startY = window.scrollY
+      const endY = max > 0 ? (target / TOTAL_SCROLL_PROGRESS) * max : 0
+      const startProgress = progress.current
+      const distance = Math.abs(endY - startY)
+      const heroTargetY = max > 0
+        ? (getPortalTarget(0) / TOTAL_SCROLL_PROGRESS) * max
+        : 0
+      const initialEntryDistance = Math.abs(heroTargetY - startY)
+      const duration = direction === 'between-sections'
+        ? 650
+        : direction === 'to-home'
+          ? 750
+          : direction === 'from-initial'
+            ? Math.min(1500, Math.max(750, initialEntryDistance * 0.45))
+          : Math.min(1500, Math.max(750, distance * 0.45))
+      const startedAt = performance.now()
+      directNavigationActiveRef.current = true
+      const sourceIndex = activePortalRef.current >= 0
+        ? activePortalRef.current
+        : portalAtProgress(startProgress).index
+      const previousRotationOffsetY = navigationAnimationRef.current.rotationOffsetY ?? 0
+      const previousRotationOffsetZ = navigationAnimationRef.current.rotationOffsetZ ?? 0
+      const sectionTurn = -Math.sign(targetIndex - sourceIndex) * (Math.PI / 3)
+      if (navigationTransitionTimerRef.current) {
+        clearTimeout(navigationTransitionTimerRef.current)
+        navigationTransitionTimerRef.current = null
+      }
+      setNavigationTransition({
+        phase: sourceIndex >= 0 ? 'leaving' : 'idle',
+        sourceIndex,
+        targetIndex,
+      })
+      navigationAnimationRef.current = {
+        active: true,
+        phase: 'leaving',
+        progress: 0,
+        targetIndex,
+        sourceIndex,
+        direction,
+        rotationOffsetY: direction === 'between-sections' ? previousRotationOffsetY : 0,
+        rotationOffsetZ: direction === 'between-sections'
+          ? previousRotationOffsetZ + (targetIndex - sourceIndex) * (Math.PI / 3) + sectionTurn
+          : 0,
+        id: ++navigationAnimationIdRef.current,
+      }
+      activePortalRef.current = -1
+      setActivePortal(-1)
+      root.style.setProperty('--portal-content-opacity', '0')
+
+      const step = (now) => {
+        const t = clamp01((now - startedAt) / duration)
+        const eased = easeInOut(t)
+        const nextY = startY + (endY - startY) * eased
+        const nextProgress = startProgress + (target - startProgress) * eased
+
+        window.scrollTo({ top: nextY, left: 0, behavior: 'instant' })
+        rawProgressRef.current = nextProgress
+        progress.current = nextProgress
+        navigationAnimationRef.current.progress = t
+        apply()
+
+        if (t < 1) {
+          directNavigationFrameRef.current = requestAnimationFrame(step)
+        } else {
+          directNavigationFrameRef.current = 0
+          window.scrollTo({ top: endY, left: 0, behavior: 'instant' })
+          rawProgressRef.current = target
+          progress.current = target
+          directNavigationActiveRef.current = false
+          navigationAnimationRef.current.active = false
+          const hasTargetPanel = direction !== 'to-home'
+          navigationAnimationRef.current.phase = hasTargetPanel ? 'entering' : 'idle'
+          if (direction === 'from-initial') {
+            // Keep every destination at the same canonical model orientation
+            // after the shared initial zoom/turn animation.
+            navigationAnimationRef.current.rotationOffsetY = 0
+            navigationAnimationRef.current.rotationOffsetZ = targetIndex * (Math.PI / 3)
+          } else if (direction !== 'between-sections') {
+            navigationAnimationRef.current.rotationOffsetY = 0
+            navigationAnimationRef.current.rotationOffsetZ = 0
+          }
+          setNavigationTransition({
+            phase: hasTargetPanel ? 'entering' : 'idle',
+            sourceIndex,
+            targetIndex,
+          })
+          if (hasTargetPanel) {
+            navigationTransitionTimerRef.current = window.setTimeout(() => {
+              navigationAnimationRef.current.phase = 'idle'
+              setNavigationTransition((current) => ({ ...current, phase: 'idle' }))
+              navigationTransitionTimerRef.current = null
+            }, 1100)
+          }
+          apply()
+        }
+      }
+
+      directNavigationFrameRef.current = requestAnimationFrame(step)
     }
 
     // ScrollTrigger is the scroll-position source; the existing damped RAF
@@ -448,6 +593,11 @@ export function useScrollChoreography(isMobileRef) {
     return () => {
       scrollTrigger.kill()
       if (frame) cancelAnimationFrame(frame)
+      if (directNavigationFrameRef.current) cancelAnimationFrame(directNavigationFrameRef.current)
+      if (navigationTransitionTimerRef.current) clearTimeout(navigationTransitionTimerRef.current)
+      directNavigationRef.current = null
+      directNavigationActiveRef.current = false
+      navigationAnimationRef.current.active = false
       root.style.removeProperty('--blackout-opacity')
       root.style.removeProperty('--portal-content-opacity')
       root.style.removeProperty('--hero-opacity')
@@ -460,6 +610,7 @@ export function useScrollChoreography(isMobileRef) {
   useEffect(() => {
     return () => {
       if (warpFrameRef.current) cancelAnimationFrame(warpFrameRef.current)
+      if (directNavigationFrameRef.current) cancelAnimationFrame(directNavigationFrameRef.current)
     }
   }, [])
 
@@ -536,7 +687,9 @@ export function useScrollChoreography(isMobileRef) {
     warpVisible,
     isRedirecting,
     isWarpingViaButton,
+    navigationTransition,
     scrollToProgress,
+    navigationAnimation: navigationAnimationRef,
     handleStartWarp,
   }
 }

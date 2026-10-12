@@ -5,6 +5,7 @@ export default function Navbar({
   activePortal,
   onNavigate,
   onStartClick,
+  onDemoClick,
   menuOpen,
   setMenuOpen,
   portalTarget,
@@ -26,8 +27,8 @@ export default function Navbar({
             key={link.id}
             href={`#${link.id}`}
             className={activePortal === index ? 'site-nav__link--active' : ''}
-            aria-current={activePortal === index ? 'true' : undefined}
-            onClick={(event) => onNavigate(event, portalTarget(index))}
+            aria-current={activePortal === index ? 'page' : undefined}
+            onClick={(event) => onNavigate(event, portalTarget(index), index)}
           >
             {link.label}
           </a>
@@ -45,9 +46,8 @@ export default function Navbar({
         </a>
         <a
           className="site-nav__cta"
-          href={EXTERNAL_LINKS.BOOK_DEMO}
-          target="_blank"
-          rel="noreferrer"
+          href="#book-demo"
+          onClick={onDemoClick}
           onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
           onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
         >

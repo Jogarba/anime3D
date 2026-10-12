@@ -23,7 +23,11 @@ export default function TelemetryWidget({ telemetry }) {
           </div>
           <div className="telemetry-card__sub">{item.sub}</div>
           <div className="telemetry-card__bar-wrap">
-            <div className="telemetry-card__bar-fill" data-fill={item.bar || '75%'} />
+            <div
+              className="telemetry-card__bar-fill"
+              data-fill={item.bar || '75%'}
+              style={{ '--telemetry-fill': item.bar || '75%' }}
+            />
           </div>
         </div>
       ))}

@@ -1,4 +1,7 @@
+// Six physical hexagon faces carry seven content stops: the hero begins at
+// the first face, and Business Case returns to the same face after one turn.
 export const SECTION_COUNT = 6
+export const PORTAL_COUNT = SECTION_COUNT + 1
 export const INITIAL_ZOOM_DISTANCE = 1.2
 export const SECTION_HOLD_DISTANCE = 0.9
 export const SECTION_TRANSITION_DISTANCE = 0.45
@@ -7,7 +10,7 @@ export const SECTION_CONTENT_GAP = 0.06
 
 // End of the last section's full visibility window.
 export const SECTIONS_END =
-  INITIAL_ZOOM_DISTANCE + (SECTION_COUNT - 1) * SECTION_CYCLE + SECTION_HOLD_DISTANCE
+  INITIAL_ZOOM_DISTANCE + (PORTAL_COUNT - 1) * SECTION_CYCLE + SECTION_HOLD_DISTANCE
 
 // Final section transition completes here.
 export const SECTIONS_EXIT_END = SECTIONS_END + SECTION_TRANSITION_DISTANCE
@@ -36,7 +39,7 @@ export const ZOOM_OUT_START = OVERVIEW_ZOOM_OUT_START
 export const TOTAL_SCROLL_PROGRESS = WARP_TRAVERSE_END
 
 export function getPortalSectionStart(index) {
-  const sectionIndex = Math.max(0, Math.min(SECTION_COUNT - 1, index))
+  const sectionIndex = Math.max(0, Math.min(PORTAL_COUNT - 1, index))
   return INITIAL_ZOOM_DISTANCE + sectionIndex * SECTION_CYCLE
 }
 

@@ -1,9 +1,11 @@
 import { NAV_LINKS, EXTERNAL_LINKS } from '../../constants/navigation'
 
 export default function MobileMenu({
+  activePortal,
   menuOpen,
   onMenuNav,
   onStartClick,
+  onDemoClick,
   portalTarget,
 }) {
   return (
@@ -18,9 +20,10 @@ export default function MobileMenu({
           <a
             key={link.id}
             href={`#${link.id}`}
-            className="mobile-menu__link"
+            className={`mobile-menu__link${activePortal === index ? ' mobile-menu__link--active' : ''}`}
+            aria-current={activePortal === index ? 'page' : undefined}
             tabIndex={menuOpen ? 0 : -1}
-            onClick={(event) => onMenuNav(event, portalTarget(index))}
+            onClick={(event) => onMenuNav(event, portalTarget(index), index)}
           >
             <span className="mobile-menu__link-title">{link.label}</span>
             <span className="mobile-menu__link-num">{String(index + 1).padStart(2, '0')}</span>
@@ -38,10 +41,9 @@ export default function MobileMenu({
         </a>
         <a
           className="mobile-menu__btn mobile-menu__btn--ghost"
-          href={EXTERNAL_LINKS.BOOK_DEMO}
-          target="_blank"
-          rel="noreferrer"
+          href="#book-demo"
           tabIndex={menuOpen ? 0 : -1}
+          onClick={onDemoClick}
         >
           Book a demo <span aria-hidden="true">↗</span>
         </a>

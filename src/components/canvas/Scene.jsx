@@ -38,10 +38,12 @@ function RevealLighting({ revealProgress }) {
 
 export default function Scene({
   progress,
+  navigationAnimation,
   isMobile = false,
   isWarpingViaButton = false,
   isInitialLoading = false,
   initialRevealProgress,
+  demoCameraRequest,
   onModelReady,
 }) {
   return (
@@ -57,11 +59,12 @@ export default function Scene({
           depth: true,
         }}
       >
-        <ResponsiveCamera progress={progress} initialRevealProgress={initialRevealProgress} />
+        <ResponsiveCamera progress={progress} navigationAnimation={navigationAnimation} initialRevealProgress={initialRevealProgress} demoCameraRequest={demoCameraRequest} />
         <RevealLighting revealProgress={initialRevealProgress} />
         <Suspense fallback={null}>
           <AnimatedModel
             progress={progress}
+            navigationAnimation={navigationAnimation}
             isWarpingViaButton={isWarpingViaButton}
             isInitialLoading={isInitialLoading}
             onModelReady={onModelReady}

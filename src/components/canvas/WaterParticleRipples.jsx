@@ -4,17 +4,18 @@ import * as THREE from 'three'
 
 export default function WaterParticleRipples() {
   const pointsRef = useRef(null)
-  const particleCount = 120
+  const particlesPerRing = 48
+  const particleCount = particlesPerRing * 3
 
   const particleData = useMemo(() => {
     const pos = new Float32Array(particleCount * 3)
     const waves = []
 
     for (let ring = 0; ring < 3; ring++) {
-      const countPerRing = 40
+      const countPerRing = particlesPerRing
       for (let i = 0; i < countPerRing; i++) {
         const idx = ring * countPerRing + i
-        const angle = (i / countPerRing) * Math.PI * 2 + (Math.random() - 0.5) * 0.15
+        const angle = (i / countPerRing) * Math.PI * 2
         waves.push({
           ring,
           angle,
@@ -79,8 +80,11 @@ export default function WaterParticleRipples() {
       w.radius += delta * w.speed
       const undulation = Math.sin(activeTime * 3.5 + w.angle * 2) * 0.04
 
-      pos[i * 3] = Math.cos(w.angle) * w.radius
-      pos[i * 3 + 1] = Math.sin(w.angle) * w.radius
+      // Project each point onto a regular hexagon whose corners expand with the wave.
+      const sideAngle = (((w.angle + Math.PI / 2 + Math.PI / 6) % (Math.PI / 3) + (Math.PI / 3)) % (Math.PI / 3)) - Math.PI / 6
+      const hexRadius = w.radius * Math.cos(Math.PI / 6) / Math.cos(sideAngle)
+      pos[i * 3] = Math.cos(w.angle) * hexRadius
+      pos[i * 3 + 1] = Math.sin(w.angle) * hexRadius
       pos[i * 3 + 2] = w.zBase + undulation
     })
 

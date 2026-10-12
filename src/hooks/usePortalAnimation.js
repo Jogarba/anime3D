@@ -13,19 +13,38 @@ gsap.registerPlugin(ScrollTrigger)
 
 const clamp01 = (value) => Math.min(1, Math.max(0, value))
 
-function addScrubbedEntrance(timeline, panel) {
+function getEntranceTargets(panel) {
   const inner = panel.querySelector('.portal-panel__inner')
-  if (!inner) return
+  if (!inner) return []
+
+  const staggeredContainers = [
+    '.portal-environments',
+    '.portal-telemetry',
+    '.portal-stats',
+    '.portal-details',
+    '.pipeline-flow',
+    '.portal-facts',
+    '.portal-cta-group',
+  ].join(', ')
+  const expandWidget = (element) => element.matches(staggeredContainers)
+    ? Array.from(element.children)
+    : [element]
 
   // Reveal blocks in their actual reading order. Business case columns are
   // flattened so the right-hand table follows the left-hand copy.
-  const targets = Array.from(inner.children).flatMap((child) => {
-    if (child.matches('.portal-panel__left, .portal-panel__right')) {
-      return Array.from(child.children)
-    }
-    return [child]
-  })
+  const targets = inner.classList.contains('portal-panel__inner--hero')
+    ? Array.from(inner.querySelector('.hero-container')?.children ?? [])
+    : Array.from(inner.children).flatMap((child) => {
+        if (child.matches('.portal-panel__left, .portal-panel__right')) {
+          return Array.from(child.children).flatMap(expandWidget)
+        }
+        return expandWidget(child)
+      })
 
+  return targets
+}
+
+function addScrubbedEntrance(timeline, panel, targets) {
   if (!targets.length) return
 
   timeline.fromTo(
@@ -35,15 +54,15 @@ function addScrubbedEntrance(timeline, panel) {
       autoAlpha: 1,
       y: 0,
       scale: 1,
-      duration: 0.22,
+      duration: 0.38,
       stagger: 0.07,
-      ease: 'none',
+      ease: 'power3.out',
     },
     0,
   )
 }
 
-export function usePortalAnimation(progress, isMobile) {
+export function usePortalAnimation(progress, isMobile, navigationAnimation) {
   // Keep the ambient background pulse independent from scroll-scrubbed content.
   useEffect(() => {
     const ambientAnimation = animate('.ambient-glow-orb', {
@@ -63,8 +82,16 @@ export function usePortalAnimation(progress, isMobile) {
 
     const timelines = []
     const context = gsap.context(() => {
-      landingSections.forEach((section, index) => {
-        const panel = root.querySelector(`#${section.id}`)
+      const portalEntries = [
+        { id: 'landing-hero', portalIndex: 0 },
+        ...landingSections.map((section, index) => ({
+          id: section.id,
+          portalIndex: index + 1,
+        })),
+      ]
+
+      portalEntries.forEach(({ id, portalIndex }) => {
+        const panel = root.querySelector(`#${id}`)
         if (!panel) return
 
         const timeline = gsap.timeline({
@@ -81,25 +108,74 @@ export function usePortalAnimation(progress, isMobile) {
               }
             : {}),
         })
-        addScrubbedEntrance(timeline, panel)
+        const targets = getEntranceTargets(panel)
+        addScrubbedEntrance(timeline, panel, targets)
 
-        const sectionStart = INITIAL_ZOOM_DISTANCE + index * SECTION_CYCLE
-        const revealStart = index === 0
+        const sectionStart = INITIAL_ZOOM_DISTANCE + portalIndex * SECTION_CYCLE
+        const revealStart = portalIndex === 0
           ? INITIAL_ZOOM_DISTANCE - 0.38
           : sectionStart + 0.02
         const revealEnd = sectionStart + SECTION_HOLD_DISTANCE * 0.94
-        timelines.push({ timeline, revealStart, revealEnd })
+        timelines.push({
+          timeline,
+          panel,
+          targets,
+          portalIndex,
+          revealStart,
+          revealEnd,
+          readingMode: false,
+        })
       })
     }, root)
 
+    let preparedNavigationId = null
     const syncTimelinesToScroll = () => {
       if (isMobile) return
+      const navigation = navigationAnimation?.current
+      if (navigation?.active) {
+        return
+      }
+      if (navigation?.phase === 'entering') {
+        if (preparedNavigationId !== navigation.id) {
+          preparedNavigationId = navigation.id
+          const destination = timelines.find(({ portalIndex }) => portalIndex === navigation.targetIndex)
+          if (destination) {
+            // Put GSAP at the exact destination state before the route class
+            // fades in. Releasing CSS animation then cannot reveal a stale
+            // scroll-scrub frame underneath it.
+            const destinationProgress = clamp01(
+              ((progress?.current ?? 0) - destination.revealStart) /
+              (destination.revealEnd - destination.revealStart),
+            )
+            destination.timeline.pause().progress(destinationProgress)
+            if (destinationProgress >= 1) {
+              gsap.set(destination.targets, { clearProps: 'opacity,visibility' })
+              destination.readingMode = true
+            } else {
+              destination.readingMode = false
+            }
+          }
+        }
+        return
+      }
+      preparedNavigationId = null
       const currentProgress = progress?.current ?? 0
-      timelines.forEach(({ timeline, revealStart, revealEnd }) => {
+      timelines.forEach((entry) => {
         const localProgress = clamp01(
-          (currentProgress - revealStart) / (revealEnd - revealStart),
+          (currentProgress - entry.revealStart) /
+          (entry.revealEnd - entry.revealStart),
         )
-        timeline.progress(localProgress)
+        if (localProgress >= 1) {
+          if (!entry.readingMode) {
+            entry.timeline.progress(1)
+            gsap.set(entry.targets, { clearProps: 'opacity,visibility' })
+            entry.readingMode = true
+          }
+          return
+        }
+
+        entry.readingMode = false
+        entry.timeline.progress(localProgress)
       })
     }
 
@@ -114,7 +190,7 @@ export function usePortalAnimation(progress, isMobile) {
       gsap.ticker.remove(syncTimelinesToScroll)
       context.revert()
     }
-  }, [progress, isMobile])
+  }, [progress, isMobile, navigationAnimation])
 
   // Add a local light response to content and a subtle magnetic pull to controls.
   useEffect(() => {
@@ -127,6 +203,9 @@ export function usePortalAnimation(progress, isMobile) {
       '.portal-panel button',
     ].join(',')
     const cardSelector = [
+      '.liquid-glass-card',
+      '.hero-stat-item',
+      '.hero-metric-pod',
       '.terminal-preview',
       '.comparison-table-wrap',
       '.portal-stats > div',
@@ -143,10 +222,13 @@ export function usePortalAnimation(progress, isMobile) {
       const control = event.target.closest?.(interactiveSelector)
       if (control) {
         const bounds = control.getBoundingClientRect()
-        const offsetX = (event.clientX - bounds.left - bounds.width / 2) / Math.max(bounds.width / 2, 1)
-        const offsetY = (event.clientY - bounds.top - bounds.height / 2) / Math.max(bounds.height / 2, 1)
-        control.style.setProperty('--magnet-x', `${offsetX * 5}px`)
-        control.style.setProperty('--magnet-y', `${offsetY * 4}px`)
+        const offsetX = Math.max(-1, Math.min(1, (event.clientX - bounds.left - bounds.width / 2) / Math.max(bounds.width / 2, 1)))
+        const offsetY = Math.max(-1, Math.min(1, (event.clientY - bounds.top - bounds.height / 2) / Math.max(bounds.height / 2, 1)))
+        control.style.setProperty('--magnet-x', `${offsetX * 9}px`)
+        control.style.setProperty('--magnet-y', `${offsetY * 7}px`)
+        control.style.setProperty('--control-pointer-x', `${event.clientX - bounds.left}px`)
+        control.style.setProperty('--control-pointer-y', `${event.clientY - bounds.top}px`)
+        control.style.setProperty('--control-glow', '1')
       }
 
       const card = event.target.closest?.(cardSelector)
@@ -172,6 +254,7 @@ export function usePortalAnimation(progress, isMobile) {
       if (control && !control.contains(event.relatedTarget)) {
         control.style.setProperty('--magnet-x', '0px')
         control.style.setProperty('--magnet-y', '0px')
+        control.style.setProperty('--control-glow', '0')
       }
       const card = event.target.closest?.(cardSelector)
       if (card && !card.contains(event.relatedTarget)) {
@@ -190,6 +273,9 @@ export function usePortalAnimation(progress, isMobile) {
       document.querySelectorAll(interactiveSelector).forEach((control) => {
         control.style.removeProperty('--magnet-x')
         control.style.removeProperty('--magnet-y')
+        control.style.removeProperty('--control-pointer-x')
+        control.style.removeProperty('--control-pointer-y')
+        control.style.removeProperty('--control-glow')
       })
       portal?.querySelectorAll(cardSelector).forEach((card) => {
         card.style.removeProperty('--pointer-x')

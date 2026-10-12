@@ -1,12 +1,37 @@
-import { useState } from 'react'
-import { animate } from 'animejs'
-import TypewriterText from '../common/TypewriterText'
+import { useEffect, useState } from 'react'
 import { EXTERNAL_LINKS } from '../../constants/navigation'
+import TypewriterText from '../common/TypewriterText'
+import TechHeading from '../common/TechHeading'
 
-export default function HeroView({ onStartClick }) {
+export default function HeroView({ isActive = false }) {
   const [copied, setCopied] = useState(false)
+  const [typingRun, setTypingRun] = useState(0)
+  const command = 'git push origin main'
+  const commandDelay = 180
+  const commandSpeed = 30
+  const logSpeed = 16
+  const deploymentLogs = [
+    { text: 'Build passed (42s)', className: 't-log--green', icon: '✓' },
+    { text: 'Image pushed to registry', className: 't-log--cyan', icon: '✓' },
+    { text: 'Dev environment synced', className: 't-log--cyan', icon: '✓' },
+    { text: 'QA ready → qa.yourapp.com', className: 't-log--cyan', icon: '✓' },
+    { text: 'Certificates renewed', className: 't-log--green', icon: '✓' },
+    { text: 'Secrets rotated automatically', className: 't-log--green', icon: '✓' },
+    { text: 'Live · 99.99% uptime SLA', className: 't-log--green', icon: '●' },
+  ]
+  let nextLogDelay = commandDelay + command.length * commandSpeed + 260
 
-  const copyInstall = async () => {
+  const logs = deploymentLogs.map((log) => {
+    const delay = nextLogDelay
+    nextLogDelay += log.text.length * logSpeed + 180
+    return { ...log, delay }
+  })
+
+  useEffect(() => {
+    if (isActive) setTypingRun((run) => run + 1)
+  }, [isActive])
+
+  const copyInstallCommand = async () => {
     try {
       await navigator.clipboard.writeText(EXTERNAL_LINKS.INSTALL_CMD)
       setCopied(true)
@@ -19,72 +44,42 @@ export default function HeroView({ onStartClick }) {
   return (
     <div className="hero-container">
       <div className="hero-left">
-        <p className="hero-badge">
+        <p className="portal-panel__eyebrow hero-badge">
           <span className="hero-badge__dot" aria-hidden="true" />
-          Kubernetes-native application platform
+          Automated infrastructure platform
         </p>
-        <h1 className="hero-title">
-          <span className="hero-title-line">Production-grade</span>
-          <span className="hero-title-line">
-            Kubernetes<span className="anime-accent-dot">.</span>
-          </span>
-          <span className="hero-title-line">
-            <span className="hero-title__highlight">Ship fast. Ship secure.</span>
-          </span>
-        </h1>
-        <p className="hero-subtitle">
+        <TechHeading
+          as="h1"
+          id="landing-hero-title"
+          className="hero-title tech-heading--hero"
+          text="Ship it. Evolut handles the rest."
+          lines={['Ship it.', 'Evolut handles', 'the rest.']}
+          colors={['#ffffff', '#ffffff', '#7dd3fc']}
+          fontSize={88}
+          active={isActive}
+        />
+        <p className="portal-panel__description hero-subtitle">
           <TypewriterText
-            text="Your team writes code. Evolut handles pipelines, secrets, security, observability, and scaling — automatically, on every push."
+            text="Your team writes code. We handle everything from deployment pipelines to secrets, monitoring, and scaling — automatically, on every push."
             speed={14}
             delay={280}
             showCursor={false}
           />
         </p>
-        <div className="hero-cta-wrap">
-          <a
-            className="hero-cta-btn liquid-glass-card"
-            href={EXTERNAL_LINKS.LOGIN}
-            onClick={onStartClick}
-            onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
-            onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
-          >
-            Start <span className="btn-arrow-icon" aria-hidden="true">→</span>
-          </a>
-          <a
-            className="hero-cta-btn liquid-glass-card"
-            href={EXTERNAL_LINKS.BOOK_DEMO}
-            target="_blank"
-            rel="noreferrer"
-            onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
-            onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
-          >
-            Book a demo <span className="btn-arrow-icon" aria-hidden="true">↗</span>
-          </a>
+        <div className="hero-install" aria-label="Install command">
+          <code className="hero-install__command">{EXTERNAL_LINKS.INSTALL_CMD}</code>
           <button
+            className={`hero-install__button${copied ? ' is-copied' : ''}`}
             type="button"
-            className="npm-install-pill liquid-glass-card"
-            onClick={copyInstall}
-            aria-label={`Copy ${EXTERNAL_LINKS.INSTALL_CMD}`}
+            onClick={copyInstallCommand}
+            aria-label={copied ? 'Install command copied' : `Copy install command: ${EXTERNAL_LINKS.INSTALL_CMD}`}
+            aria-live="polite"
           >
-            <span className="npm-install-icon" aria-hidden="true">$</span>
-            <span>{copied ? 'copied' : EXTERNAL_LINKS.INSTALL_CMD}</span>
+            <span className="hero-install__button-label hero-install__button-label--default">Copy command</span>
+            <span className="hero-install__button-label hero-install__button-label--copied" aria-hidden="true">
+              <span className="hero-install__check">✓</span> Copied
+            </span>
           </button>
-        </div>
-        <div className="hero-stats-bar liquid-glass-card">
-          <div className="hero-stat-item">
-            <strong>Automated</strong>
-            <span>Git-triggered</span>
-          </div>
-          <span className="hero-stats-sep" aria-hidden="true">|</span>
-          <div className="hero-stat-item">
-            <strong>Failover</strong>
-            <span>Auto recovery</span>
-          </div>
-          <span className="hero-stats-sep" aria-hidden="true">|</span>
-          <div className="hero-stat-item">
-            <strong>Runtime</strong>
-            <span>Secret injection</span>
-          </div>
         </div>
       </div>
 
@@ -92,10 +87,10 @@ export default function HeroView({ onStartClick }) {
         <div className="hero-right-card hero-status-card liquid-glass-card">
           <span className="hero-status-pill">
             <span className="hero-status-pulse" aria-hidden="true" />
-            Example deployment
+            Deployment pipeline
           </span>
           <div className="hero-status-meta">
-            <span>v2.4.1 sample</span>
+            <span>Automated on every push</span>
           </div>
         </div>
 
@@ -109,42 +104,76 @@ export default function HeroView({ onStartClick }) {
             <span className="hero-terminal__title">evolut deploy</span>
             <span className="hero-terminal__badge">EXAMPLE</span>
           </div>
-          <div className="hero-terminal__body">
-            <p className="hero-terminal__cmd">
+          <div className="hero-terminal__body" aria-live="off">
+            <p
+              key={`hero-command-${typingRun}`}
+              className="hero-terminal__cmd terminal-output-line"
+              style={{ animationDelay: `${commandDelay}ms` }}
+            >
               <span className="cmd-prompt">$</span>
-              git push origin main
+              <TypewriterText
+                className="terminal-typewriter"
+                text={command}
+                speed={commandSpeed}
+                delay={commandDelay}
+                enabled={typingRun > 0}
+                restartKey={typingRun}
+                showCursor
+              />
             </p>
             <div className="hero-terminal__logs">
-              <p className="t-log t-log--cyan">
-                <span className="log-icon">▸</span>
-                Example container build completed
-              </p>
-              <p className="t-log t-log--green">
-                <span className="log-icon">✓</span>
-                Example security scan completed
-              </p>
-              <p className="t-log t-log--green">
-                <span className="log-icon">✓</span>
-                Example GitOps deployment completed
-              </p>
+              {logs.map((log, index) => (
+                <p
+                  key={`hero-log-${typingRun}-${index}`}
+                  className={`t-log ${log.className} terminal-output-line`}
+                  style={{ animationDelay: `${log.delay}ms` }}
+                >
+                  <span className="log-icon" aria-hidden="true">{log.icon}</span>
+                  <TypewriterText
+                    className="terminal-typewriter"
+                    text={log.text}
+                    speed={logSpeed}
+                    delay={log.delay}
+                    enabled={typingRun > 0}
+                    restartKey={typingRun}
+                    showCursor
+                    cursorWhenDone={index === logs.length - 1}
+                  />
+                </p>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="hero-right-card hero-metrics-card liquid-glass-card" role="region" aria-label="Illustrative telemetry metrics">
-          <span className="hero-metrics-label">Illustrative metrics</span>
+        <div className="hero-right-card hero-metrics-card liquid-glass-card" role="region" aria-label="Platform performance claims">
+          <span className="hero-metrics-label">Platform at a glance</span>
           <div className="hero-metric-pod">
-            <span className="hero-metric-pod__val">14.2k</span>
-            <span className="hero-metric-pod__lbl">req /s</span>
+            <span className="hero-metric-pod__val">&lt;60s</span>
+            <span className="hero-metric-pod__lbl">first deploy</span>
           </div>
           <div className="hero-metric-pod">
-            <span className="hero-metric-pod__val">12ms</span>
-            <span className="hero-metric-pod__lbl">p99</span>
+            <span className="hero-metric-pod__val">99.99%</span>
+            <span className="hero-metric-pod__lbl">uptime SLA</span>
           </div>
           <div className="hero-metric-pod">
-            <span className="hero-metric-pod__val">4</span>
-            <span className="hero-metric-pod__lbl">pods</span>
+            <span className="hero-metric-pod__val">40%</span>
+            <span className="hero-metric-pod__lbl">cost reduction</span>
           </div>
+        </div>
+      </div>
+
+      <div className="hero-stats-bar">
+        <div className="hero-stat-item">
+          <strong>0 secrets</strong>
+          <span>in source code</span>
+        </div>
+        <div className="hero-stat-item">
+          <strong>14 hours / week</strong>
+          <span>infrastructure toil reclaimed</span>
+        </div>
+        <div className="hero-stat-item">
+          <strong>$140k+ / year</strong>
+          <span>median DevOps engineer salary</span>
         </div>
       </div>
     </div>

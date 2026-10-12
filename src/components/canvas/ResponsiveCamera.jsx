@@ -12,11 +12,19 @@ import {
   WARP_EXIT_TRAVEL,
 } from '../../sceneSequence'
 
-export default function ResponsiveCamera({ progress, initialRevealProgress }) {
+export default function ResponsiveCamera({ progress, navigationAnimation, initialRevealProgress, demoCameraRequest }) {
   const { camera, size } = useThree()
   const initialDistance = useRef(6)
   const currentLookAt = useRef(new THREE.Vector3(0, 0, 0))
+  const navigationPose = useRef({
+    id: -1,
+    position: new THREE.Vector3(),
+    lookAt: new THREE.Vector3(),
+  })
+  const navigationTargetPosition = useRef(new THREE.Vector3())
+  const navigationTargetLookAt = useRef(new THREE.Vector3())
   const wasPastCore = useRef(false)
+  const demoCamera = useRef({ id: -1, open: false, transitioning: false, elapsed: 0, fromPosition: new THREE.Vector3(), fromLookAt: new THREE.Vector3(), toPosition: new THREE.Vector3(), toLookAt: new THREE.Vector3(), returnPosition: new THREE.Vector3(), returnLookAt: new THREE.Vector3() })
 
   useEffect(() => {
     const aspect = size.width / Math.max(size.height, 1)
@@ -31,10 +39,67 @@ export default function ResponsiveCamera({ progress, initialRevealProgress }) {
   }, [camera, size.width, size.height])
 
   useFrame((_, delta) => {
+    const demoRequest = demoCameraRequest?.current
+    const demo = demoCamera.current
+    if (demoRequest && demoRequest.id !== demo.id) {
+      demo.id = demoRequest.id
+      demo.elapsed = 0
+      demo.transitioning = true
+      demo.fromPosition.copy(camera.position)
+      demo.fromLookAt.copy(currentLookAt.current)
+
+      if (demoRequest.open) {
+        demo.returnPosition.copy(camera.position)
+        demo.returnLookAt.copy(currentLookAt.current)
+        demo.toPosition.set(0, 0, 1.55)
+        demo.toLookAt.set(0, 0, 0)
+      } else {
+        demo.toPosition.copy(demo.returnPosition)
+        demo.toLookAt.copy(demo.returnLookAt)
+      }
+      demo.open = demoRequest.open
+    }
+
+    if (demo.transitioning) {
+      demo.elapsed += delta
+      const linearProgress = THREE.MathUtils.clamp(demo.elapsed / 1.05, 0, 1)
+      const t = THREE.MathUtils.smoothstep(linearProgress, 0, 1)
+      camera.position.lerpVectors(demo.fromPosition, demo.toPosition, t)
+      currentLookAt.current.lerpVectors(demo.fromLookAt, demo.toLookAt, t)
+      camera.lookAt(currentLookAt.current)
+      if (linearProgress >= 1) demo.transitioning = false
+      return
+    }
+
+    if (demo.open) return
+
     const p = progress.current
     const ease = 1 - Math.pow(0.001, delta)
     const homeZ = initialDistance.current
     const entryProgress = initialRevealProgress?.current ?? 1
+
+    const navigation = navigationAnimation?.current
+    if (navigation?.active) {
+      if (navigationPose.current.id !== navigation.id) {
+        navigationPose.current.id = navigation.id
+        navigationPose.current.position.copy(camera.position)
+        navigationPose.current.lookAt.copy(currentLookAt.current)
+      }
+      const t = THREE.MathUtils.smoothstep(navigation.progress, 0, 1)
+      const returningHome = navigation.direction === 'to-home'
+      const betweenSections = navigation.direction === 'between-sections'
+      if (betweenSections) {
+        navigationTargetPosition.current.copy(navigationPose.current.position)
+        navigationTargetLookAt.current.copy(navigationPose.current.lookAt)
+      } else {
+        navigationTargetPosition.current.set(0, returningHome ? 0 : 1.35, returningHome ? homeZ : 1.85)
+        navigationTargetLookAt.current.set(0, returningHome ? 0 : 1.35, 0)
+      }
+      camera.position.lerpVectors(navigationPose.current.position, navigationTargetPosition.current, t)
+      currentLookAt.current.lerpVectors(navigationPose.current.lookAt, navigationTargetLookAt.current, t)
+      camera.lookAt(currentLookAt.current)
+      return
+    }
 
     if (p === 0 && entryProgress < 1) {
       const t = THREE.MathUtils.smoothstep(entryProgress, 0, 1)

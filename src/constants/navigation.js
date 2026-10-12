@@ -1,4 +1,5 @@
 export const NAV_LINKS = [
+  { id: 'landing-hero', label: 'Overview' },
   { id: 'pipeline', label: 'Pipeline' },
   { id: 'configure', label: 'Platform' },
   { id: 'releases', label: 'Delivery' },

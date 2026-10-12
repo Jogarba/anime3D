@@ -6,12 +6,20 @@ export default function TypewriterText({
   speed = 28,
   delay = 0,
   showCursor = true,
+  cursorWhenDone = false,
+  enabled = true,
+  restartKey = 0,
 }) {
   const [count, setCount] = useState(0)
 
   useEffect(() => {
     setCount(0)
     if (!text) return undefined
+    if (!enabled) return undefined
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      setCount(text.length)
+      return undefined
+    }
 
     let intervalId
     const startId = window.setTimeout(() => {
@@ -30,14 +38,14 @@ export default function TypewriterText({
       window.clearTimeout(startId)
       if (intervalId) window.clearInterval(intervalId)
     }
-  }, [text, speed, delay])
+  }, [text, speed, delay, enabled, restartKey])
 
   const done = count >= text.length
 
   return (
-    <span className={className}>
+    <span className={className} aria-label={text}>
       {text.slice(0, count)}
-      {showCursor && !done ? (
+      {showCursor && (!done || cursorWhenDone) ? (
         <span className="liquid-cursor" aria-hidden="true">
           |
         </span>

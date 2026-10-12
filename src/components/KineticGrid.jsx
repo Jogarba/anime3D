@@ -1,5 +1,20 @@
 import { useEffect, useRef } from 'react'
 
+const HEXAGON_STEP = Math.PI / 3
+const HEXAGON_APOTHEM_RATIO = Math.cos(Math.PI / 6)
+
+function traceHexagon(ctx, x, y, circumradius) {
+  ctx.beginPath()
+  for (let corner = 0; corner < 6; corner++) {
+    const angle = corner * HEXAGON_STEP - Math.PI / 2
+    const px = x + Math.cos(angle) * circumradius
+    const py = y + Math.sin(angle) * circumradius
+    if (corner === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  }
+  ctx.closePath()
+}
+
 export default function KineticGrid({ isMobile = false }) {
   const canvasRef = useRef(null)
 
@@ -234,12 +249,16 @@ export default function KineticGrid({ isMobile = false }) {
             for (let k = 0; k < ripples.length; k++) {
               const rip = ripples[k]
               if (rip.radius <= 0) continue
-              const ripDist = Math.sqrt((rip.x - x) ** 2 + (rip.y - y) ** 2)
+              const dx = x - rip.x
+              const dy = y - rip.y
+              const angle = Math.atan2(dy, dx)
+              // Measure distance against a hexagonal wavefront, not a circular one.
+              const angleInSide = (((angle + Math.PI / 2 + Math.PI / 6) % HEXAGON_STEP + HEXAGON_STEP) % HEXAGON_STEP) - Math.PI / 6
+              const ripDist = Math.hypot(dx, dy) * Math.cos(angleInSide) / HEXAGON_APOTHEM_RATIO
               const rDiff = ripDist - rip.radius
               if (Math.abs(rDiff) < 45) {
                 const rFactor = (1 - Math.abs(rDiff) / 45) * rip.alpha
                 const waveHeight = Math.sin(rDiff * 0.09) * rFactor
-                const angle = Math.atan2(y - rip.y, x - rip.x)
                 offsetX += Math.cos(angle) * waveHeight * 3
                 offsetY += Math.sin(angle) * waveHeight * 3
               }
@@ -304,8 +323,7 @@ export default function KineticGrid({ isMobile = false }) {
           ctx.lineWidth = r.lineWidth
           ctx.shadowColor = '#38bdf8'
           ctx.shadowBlur = 12 * r.alpha
-          ctx.beginPath()
-          ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2)
+          traceHexagon(ctx, r.x, r.y, r.radius)
           ctx.stroke()
           ctx.restore()
         }

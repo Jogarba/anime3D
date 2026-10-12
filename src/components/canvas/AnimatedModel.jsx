@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import ModelCore from './ModelCore'
 import {
   SECTION_COUNT,
+  PORTAL_COUNT,
   INITIAL_ZOOM_DISTANCE,
   SECTION_HOLD_DISTANCE,
   SECTION_TRANSITION_DISTANCE,
@@ -15,10 +16,24 @@ import {
   WARP_TRAVERSE_START,
 } from '../../sceneSequence'
 
-export default function AnimatedModel({ progress, isWarpingViaButton = false, isInitialLoading = false, onModelReady }) {
+function lerpShortestAngle(from, to, progress) {
+  const delta = THREE.MathUtils.euclideanModulo(
+    to - from + Math.PI,
+    Math.PI * 2,
+  ) - Math.PI
+  return from + delta * progress
+}
+
+export default function AnimatedModel({ progress, navigationAnimation, isWarpingViaButton = false, isInitialLoading = false, onModelReady }) {
   const group = useRef(null)
   const clickWave = useRef({ active: false, time: 0 })
   const frozenRotation = useRef(new THREE.Euler())
+  const navigationPose = useRef({
+    id: -1,
+    rotation: new THREE.Euler(),
+    position: new THREE.Vector3(),
+    scale: 0.92,
+  })
   const wasWarpingViaButton = useRef(false)
   const dragRotation = useRef({ active: false, x: 0, y: 0, lastX: 0, lastY: 0 })
 
@@ -38,7 +53,9 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false, is
     // Keep the model visible until the camera physically crosses its core.
     // Hiding it at the progress boundary leaves a blank frame while the camera
     // is still approaching the core and the tunnel is correctly hidden.
-    if (p >= WARP_TRAVERSE_START && state.camera.userData.hasTraversedCore) {
+    const navigation = navigationAnimation?.current
+    const returningHome = navigation?.active && navigation.direction === 'to-home'
+    if (p >= WARP_TRAVERSE_START && state.camera.userData.hasTraversedCore && !returningHome) {
       group.current.visible = false
       return
     }
@@ -55,6 +72,55 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false, is
       frozenRotation.current.copy(group.current.rotation)
     }
     wasWarpingViaButton.current = isWarpingViaButton
+
+    if (navigation?.active) {
+      if (navigationPose.current.id !== navigation.id) {
+        navigationPose.current.id = navigation.id
+        navigationPose.current.rotation.copy(group.current.rotation)
+        navigationPose.current.position.copy(group.current.position)
+        navigationPose.current.scale = group.current.scale.x || 0.92
+      }
+      const t = THREE.MathUtils.smoothstep(navigation.progress, 0, 1)
+      const returningHome = navigation.direction === 'to-home'
+      const betweenSections = navigation.direction === 'between-sections'
+      const start = navigationPose.current
+      const turnDirection = -Math.sign(navigation.targetIndex - navigation.sourceIndex)
+      const targetRotationX = betweenSections ? start.rotation.x : 0
+      const targetRotationY = betweenSections ? start.rotation.y : returningHome ? 0 : Math.PI
+      const targetRotationZ = betweenSections
+        ? start.rotation.z + turnDirection * (Math.PI / 3)
+        : returningHome || navigation.direction === 'from-initial'
+          ? 0
+          : -navigation.targetIndex * (Math.PI / 3)
+      // The model has six-fold symmetry around Z. Remove the accumulated
+      // section turns before returning so every section starts the same
+      // short home rotation instead of unwinding a different number of faces.
+      const homeStartRotationZ = returningHome
+        ? start.rotation.z - Math.round(start.rotation.z / (Math.PI / 3)) * (Math.PI / 3)
+        : start.rotation.z
+      const targetPositionX = betweenSections ? start.position.x : 0
+      const targetPositionY = betweenSections ? start.position.y : 0
+      const targetPositionZ = betweenSections ? start.position.z : 0
+      const targetScale = betweenSections ? start.scale : returningHome ? 0.92 : 1
+      group.current.position.set(
+        THREE.MathUtils.lerp(start.position.x, targetPositionX, t),
+        THREE.MathUtils.lerp(start.position.y, targetPositionY, t),
+        THREE.MathUtils.lerp(start.position.z, targetPositionZ, t),
+      )
+      group.current.scale.setScalar(THREE.MathUtils.lerp(start.scale, targetScale, t))
+      group.current.rotation.set(
+        returningHome
+          ? lerpShortestAngle(start.rotation.x, targetRotationX, t)
+          : THREE.MathUtils.lerp(start.rotation.x, targetRotationX, t),
+        returningHome
+          ? lerpShortestAngle(start.rotation.y, targetRotationY, t)
+          : THREE.MathUtils.lerp(start.rotation.y, targetRotationY, t),
+        returningHome
+          ? lerpShortestAngle(homeStartRotationZ, targetRotationZ, t)
+          : THREE.MathUtils.lerp(start.rotation.z, targetRotationZ, t),
+      )
+      return
+    }
 
     // heroFactor: 1 on initial Hero view AND on full overview return, 0 during section stations
     let heroFactor = 0
@@ -149,16 +215,10 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false, is
       const cycleIndex = Math.floor(sectionOffset / SECTION_CYCLE)
       const inCycle = sectionOffset - cycleIndex * SECTION_CYCLE
 
-      if (cycleIndex >= SECTION_COUNT - 1) {
-        // Last section: keep rotating through the exit fade (60° to final face)
-        const exitT = THREE.MathUtils.clamp(
-          (inCycle - SECTION_HOLD_DISTANCE) / SECTION_TRANSITION_DISTANCE,
-          0,
-          1,
-        )
-        const smoothedT = THREE.MathUtils.smoothstep(exitT, 0, 1)
-        scrollRotZ =
-          -(SECTION_COUNT - 1) * (Math.PI / 3) - smoothedT * (Math.PI / 3)
+      if (cycleIndex >= PORTAL_COUNT - 1) {
+        // Business Case arrives after one full turn; keep that same face
+        // aligned while the content fades and the camera pulls back.
+        scrollRotZ = -SECTION_COUNT * (Math.PI / 3)
       } else if (inCycle <= SECTION_HOLD_DISTANCE) {
         scrollRotZ = -cycleIndex * (Math.PI / 3)
       } else {
@@ -176,8 +236,8 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false, is
     }
 
     const targetRotX = bioTiltX + waterBobRotX + dragRotation.current.x
-    const targetRotY = initialTurnY + bioTiltY + dragRotation.current.y
-    const targetRotZ = scrollRotZ + bioTiltZ
+    const targetRotY = initialTurnY + bioTiltY + dragRotation.current.y + (navigationAnimation?.current?.rotationOffsetY ?? 0)
+    const targetRotZ = scrollRotZ + bioTiltZ + (navigationAnimation?.current?.rotationOffsetZ ?? 0)
 
     if (isWarpingViaButton) {
       group.current.rotation.copy(frozenRotation.current)

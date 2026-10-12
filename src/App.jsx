@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import LiquidGlassOrb from './components/LiquidGlassOrb'
 import Navbar from './components/layout/Navbar'
 import MobileMenu from './components/layout/MobileMenu'
+import DemoFormModal from './components/layout/DemoFormModal'
 import AmbientBackdrop from './components/layout/AmbientBackdrop'
 import PortalContainer from './components/portal/PortalContainer'
 import DimensionalWarpOverlay from './components/portal/DimensionalWarpOverlay'
@@ -13,11 +14,20 @@ import { useMobile } from './hooks/useMobile'
 import { useScrollChoreography } from './hooks/useScrollChoreography'
 import { usePortalAnimation } from './hooks/usePortalAnimation'
 import { MOBILE_MAX_WIDTH } from './constants/breakpoints'
-import { TOTAL_SCROLL_PROGRESS, getPortalSectionStart, getPortalTarget } from './sceneSequence'
+import {
+  TOTAL_SCROLL_PROGRESS,
+  INITIAL_ZOOM_DISTANCE,
+  OVERVIEW_ZOOM_OUT_START,
+  WARP_APPROACH_START,
+  getPortalSectionStart,
+  getPortalTarget,
+} from './sceneSequence'
 
 export default function App() {
   const { isMobile, isMobileRef } = useMobile()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isDemoOpen, setIsDemoOpen] = useState(false)
+  const demoCameraRequest = useRef({ id: 0, open: false })
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isSceneVisible, setIsSceneVisible] = useState(false)
   const [modelReady, setModelReady] = useState(false)
@@ -26,8 +36,24 @@ export default function App() {
   const revealScene = useCallback(() => setIsSceneVisible(true), [])
   const revealLanding = useCallback(() => setIsInitialLoading(false), [])
 
+  const openDemo = useCallback((event) => {
+    event?.preventDefault()
+    setMenuOpen(false)
+    document.documentElement.dataset.demoOpen = 'true'
+    demoCameraRequest.current = { id: demoCameraRequest.current.id + 1, open: true }
+    setIsDemoOpen(true)
+  }, [])
+
+  const closeDemo = useCallback(() => {
+    document.documentElement.dataset.demoOpen = 'false'
+    demoCameraRequest.current = { id: demoCameraRequest.current.id + 1, open: false }
+    setIsDemoOpen(false)
+  }, [])
+
   const {
     progress,
+    navigationAnimation,
+    navigationTransition,
     activePortal,
     heroVisible,
     loginVisible,
@@ -38,19 +64,21 @@ export default function App() {
     handleStartWarp,
   } = useScrollChoreography(isMobileRef)
 
-  usePortalAnimation(progress, isMobile)
+  usePortalAnimation(progress, isMobile, navigationAnimation)
 
-  const navigationTarget = isMobile ? getPortalSectionStart : getPortalTarget
+  const navigationTarget = isMobile
+    ? getPortalSectionStart
+    : getPortalTarget
 
   useEffect(() => {
-    if (!menuOpen) return
+    if (!menuOpen && !isDemoOpen) return
     const root = document.documentElement
     const prevOverflow = root.style.overflow
     root.style.overflow = 'hidden'
     return () => {
       root.style.overflow = prevOverflow
     }
-  }, [menuOpen])
+  }, [menuOpen, isDemoOpen])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -68,15 +96,53 @@ export default function App() {
     }
   }, [menuOpen])
 
-  const navigateToProgress = (event, target) => {
+  const navigateToProgress = (event, target, targetIndex = null) => {
     event.preventDefault()
-    scrollToProgress(target, 'smooth')
+    const currentProgress = progress.current
+    const isSectionRoute = Number.isInteger(targetIndex)
+    const returnToInitialModel = !isSectionRoute && !isMobile &&
+      currentProgress > 0.15
+    const fromFirstModelView = isSectionRoute && !isMobile && currentProgress < INITIAL_ZOOM_DISTANCE
+    const betweenSections = isSectionRoute && !isMobile &&
+      currentProgress >= INITIAL_ZOOM_DISTANCE &&
+      currentProgress < OVERVIEW_ZOOM_OUT_START
+    const fromOverview = isSectionRoute && !isMobile &&
+      currentProgress >= OVERVIEW_ZOOM_OUT_START &&
+      currentProgress < WARP_APPROACH_START
+    scrollToProgress(
+      returnToInitialModel ? 0 : target,
+      'smooth',
+      returnToInitialModel || fromFirstModelView || betweenSections || fromOverview,
+      targetIndex ?? 0,
+      returnToInitialModel
+        ? 'to-home'
+        : betweenSections
+          ? 'between-sections'
+          : fromFirstModelView
+            ? 'from-initial'
+            : 'to-section',
+    )
   }
 
-  const handleMenuNav = (event, target) => {
+  const handleMenuNav = (event, target, targetIndex = null) => {
     event.preventDefault()
+    const currentProgress = progress.current
+    const isSectionRoute = Number.isInteger(targetIndex)
+    const fromFirstModelView = isSectionRoute && !isMobile && currentProgress < INITIAL_ZOOM_DISTANCE
+    const betweenSections = isSectionRoute && !isMobile &&
+      currentProgress >= INITIAL_ZOOM_DISTANCE &&
+      currentProgress < OVERVIEW_ZOOM_OUT_START
+    const fromOverview = isSectionRoute && !isMobile &&
+      currentProgress >= OVERVIEW_ZOOM_OUT_START &&
+      currentProgress < WARP_APPROACH_START
     setMenuOpen(false)
-    setTimeout(() => scrollToProgress(target, 'smooth'), 80)
+    setTimeout(() => scrollToProgress(
+      target,
+      'smooth',
+      fromFirstModelView || betweenSections || fromOverview,
+      targetIndex ?? 0,
+      betweenSections ? 'between-sections' : fromFirstModelView ? 'from-initial' : 'to-section',
+    ), 80)
   }
 
   const handleStartClick = (event) => {
@@ -99,10 +165,17 @@ export default function App() {
           activePortal={activePortal}
           onNavigate={navigateToProgress}
           onStartClick={handleStartClick}
+          onDemoClick={openDemo}
           menuOpen={menuOpen}
           setMenuOpen={setMenuOpen}
           portalTarget={navigationTarget}
         />
+
+        <footer className={`initial-watermark${heroVisible && !isDemoOpen ? ' initial-watermark--visible' : ''}`}>
+          <strong>Evolut</strong>
+          <span><span className="initial-watermark__copyright-symbol">©</span> Soluciones Evolut Premium 2026</span>
+          <p>Refinación de la infraestructura global</p>
+        </footer>
 
         <AmbientBackdrop isMobile={isMobile} />
 
@@ -115,10 +188,12 @@ export default function App() {
         >
           <Scene
             progress={progress}
+            navigationAnimation={navigationAnimation}
             isMobile={isMobile}
             isWarpingViaButton={isWarpingViaButton}
             isInitialLoading={isInitialLoading}
             initialRevealProgress={initialRevealProgress}
+            demoCameraRequest={demoCameraRequest}
             onModelReady={markModelReady}
           />
         </ErrorBoundary>
@@ -135,13 +210,23 @@ export default function App() {
       </main>
 
       <MobileMenu
+        activePortal={activePortal}
         menuOpen={menuOpen}
         onMenuNav={handleMenuNav}
         onStartClick={handleStartClick}
+        onDemoClick={openDemo}
         portalTarget={navigationTarget}
       />
 
-      <PortalContainer activePortal={activePortal} isMobile={isMobile} />
+      <PortalContainer
+        activePortal={activePortal}
+        isMobile={isMobile}
+        navigationTransition={navigationTransition}
+        onDemoClick={openDemo}
+        isDemoOpen={isDemoOpen}
+      />
+
+      {isDemoOpen && <DemoFormModal onClose={closeDemo} />}
 
       <LiquidGlassOrb progress={progress} isVisible={loginVisible} />
 
