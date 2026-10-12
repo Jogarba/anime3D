@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { gsap } from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { clamp01, easeInOut } from '../utils/math'
 import {
   getScrollRange,
@@ -21,6 +23,8 @@ import {
   WARP_TRIGGER_PROGRESS,
 } from '../sceneSequence'
 import { EXTERNAL_LINKS } from '../constants/navigation'
+
+gsap.registerPlugin(ScrollTrigger)
 
 const WARP_SESSION_KEY = 'evolut_warp_redirected'
 const REDIRECT_TRANSITION_MS = 180
@@ -109,6 +113,7 @@ export function portalAtProgress(progress) {
 
 export function useScrollChoreography(isMobileRef) {
   const progress = useRef(0)
+  const rawProgressRef = useRef(0)
   const activePortalRef = useRef(-1)
   const heroVisibleRef = useRef(true)
   const loginVisibleRef = useRef(false)
@@ -161,6 +166,7 @@ export function useScrollChoreography(isMobileRef) {
   // Reset to initial hero view on browser back button / history popstate
   const resetToHomeHero = useCallback(() => {
     progress.current = 0
+    rawProgressRef.current = 0
     redirectTriggeredRef.current = false
     isWarpingViaButtonRef.current = false
     isRedirectingRef.current = false
@@ -228,6 +234,17 @@ export function useScrollChoreography(isMobileRef) {
     window.addEventListener('pageshow', onPageShow)
     window.addEventListener('popstate', onPopState)
 
+    // Always start at the landing hero after a document reload. Clear a section
+    // hash first so the browser cannot restore its anchor after our scroll reset.
+    if (window.location.hash) {
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${window.location.search}`,
+      )
+    }
+    resetToHomeHero()
+
     return () => {
       window.removeEventListener('pageshow', onPageShow)
       window.removeEventListener('popstate', onPopState)
@@ -241,6 +258,7 @@ export function useScrollChoreography(isMobileRef) {
     const rebuild = () => {
       const container = document.querySelector('.portal-content')
       mobileRegionsRef.current = buildMobileRegions(container)
+      ScrollTrigger.refresh()
     }
 
     if (typeof ResizeObserver !== 'undefined') {
@@ -283,7 +301,6 @@ export function useScrollChoreography(isMobileRef) {
     root.style.setProperty('--scroll-percent', '0%')
     root.dataset.cameraCrossedCore = 'false'
 
-    let raw = 0
     let frame = 0
     let last = 0
 
@@ -382,6 +399,7 @@ export function useScrollChoreography(isMobileRef) {
       last = now
       const speed = isMobileRef.current ? 12 : 7
       const k = 1 - Math.exp(-speed * dt)
+      const raw = rawProgressRef.current
       progress.current += (raw - progress.current) * k
       if (Math.abs(raw - progress.current) > 0.0005) {
         apply()
@@ -393,15 +411,17 @@ export function useScrollChoreography(isMobileRef) {
       }
     }
 
-    const onScroll = () => {
+    const syncScrollProgress = () => {
       if (isRedirectingRef.current || redirectTriggeredRef.current) return
       const regions = mobileRegionsRef.current
       if (isMobileRef.current && regions && regions.length) {
-        raw = progressFromRegions(window.scrollY, regions)
+        rawProgressRef.current = progressFromRegions(window.scrollY, regions)
       } else {
         const max = getScrollRange()
         const scrollRatio = max > 0 ? clamp01(window.scrollY / max) : 0
-        raw = scrollRatio >= 0.995 ? TOTAL_SCROLL_PROGRESS : scrollRatio * TOTAL_SCROLL_PROGRESS
+        rawProgressRef.current = scrollRatio >= 0.995
+          ? TOTAL_SCROLL_PROGRESS
+          : scrollRatio * TOTAL_SCROLL_PROGRESS
       }
       if (!frame) {
         last = performance.now()
@@ -409,15 +429,24 @@ export function useScrollChoreography(isMobileRef) {
       }
     }
 
-    onScroll()
-    progress.current = raw
+    // ScrollTrigger is the scroll-position source; the existing damped RAF
+    // loop remains responsible for feeding the 3D choreography.
+    const scrollTrigger = ScrollTrigger.create({
+      trigger: document.documentElement,
+      start: 0,
+      end: () => `+=${Math.max(1, getScrollRange())}`,
+      invalidateOnRefresh: true,
+      onUpdate: syncScrollProgress,
+      onRefresh: syncScrollProgress,
+    })
+
+    ScrollTrigger.refresh()
+    syncScrollProgress()
+    progress.current = rawProgressRef.current
     apply()
 
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll, { passive: true })
     return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
+      scrollTrigger.kill()
       if (frame) cancelAnimationFrame(frame)
       root.style.removeProperty('--blackout-opacity')
       root.style.removeProperty('--portal-content-opacity')

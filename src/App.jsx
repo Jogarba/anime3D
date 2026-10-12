@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Scene from './components/canvas/Scene'
 import Loader from './components/Loader'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -13,11 +13,18 @@ import { useMobile } from './hooks/useMobile'
 import { useScrollChoreography } from './hooks/useScrollChoreography'
 import { usePortalAnimation } from './hooks/usePortalAnimation'
 import { MOBILE_MAX_WIDTH } from './constants/breakpoints'
-import { TOTAL_SCROLL_PROGRESS, getPortalTarget } from './sceneSequence'
+import { TOTAL_SCROLL_PROGRESS, getPortalSectionStart, getPortalTarget } from './sceneSequence'
 
 export default function App() {
   const { isMobile, isMobileRef } = useMobile()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isSceneVisible, setIsSceneVisible] = useState(false)
+  const [modelReady, setModelReady] = useState(false)
+  const initialRevealProgress = useRef(0)
+  const markModelReady = useCallback(() => setModelReady(true), [])
+  const revealScene = useCallback(() => setIsSceneVisible(true), [])
+  const revealLanding = useCallback(() => setIsInitialLoading(false), [])
 
   const {
     progress,
@@ -31,7 +38,9 @@ export default function App() {
     handleStartWarp,
   } = useScrollChoreography(isMobileRef)
 
-  usePortalAnimation(activePortal, isMobile)
+  usePortalAnimation(progress, isMobile)
+
+  const navigationTarget = isMobile ? getPortalSectionStart : getPortalTarget
 
   useEffect(() => {
     if (!menuOpen) return
@@ -79,7 +88,7 @@ export default function App() {
     <>
       <main
         id="top"
-        className="model-view"
+        className={`model-view ${isInitialLoading ? 'model-view--initial-loading' : ''} ${isSceneVisible ? '' : 'model-view--scene-hidden'}`}
         style={{ '--scroll-height': `${(TOTAL_SCROLL_PROGRESS + 0.6) * 100}dvh` }}
       >
         <p className="visually-hidden">
@@ -92,7 +101,7 @@ export default function App() {
           onStartClick={handleStartClick}
           menuOpen={menuOpen}
           setMenuOpen={setMenuOpen}
-          portalTarget={getPortalTarget}
+          portalTarget={navigationTarget}
         />
 
         <AmbientBackdrop isMobile={isMobile} />
@@ -108,10 +117,18 @@ export default function App() {
             progress={progress}
             isMobile={isMobile}
             isWarpingViaButton={isWarpingViaButton}
+            isInitialLoading={isInitialLoading}
+            initialRevealProgress={initialRevealProgress}
+            onModelReady={markModelReady}
           />
         </ErrorBoundary>
 
-        <Loader />
+        <Loader
+          modelReady={modelReady}
+          initialRevealProgress={initialRevealProgress}
+          onSceneReveal={revealScene}
+          onReveal={revealLanding}
+        />
 
         <div className="blackout" aria-hidden="true" />
         <div className="scroll-track" aria-hidden="true" />
@@ -121,7 +138,7 @@ export default function App() {
         menuOpen={menuOpen}
         onMenuNav={handleMenuNav}
         onStartClick={handleStartClick}
-        portalTarget={getPortalTarget}
+        portalTarget={navigationTarget}
       />
 
       <PortalContainer activePortal={activePortal} isMobile={isMobile} />

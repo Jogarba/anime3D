@@ -12,7 +12,7 @@ import {
   WARP_EXIT_TRAVEL,
 } from '../../sceneSequence'
 
-export default function ResponsiveCamera({ progress }) {
+export default function ResponsiveCamera({ progress, initialRevealProgress }) {
   const { camera, size } = useThree()
   const initialDistance = useRef(6)
   const currentLookAt = useRef(new THREE.Vector3(0, 0, 0))
@@ -34,6 +34,15 @@ export default function ResponsiveCamera({ progress }) {
     const p = progress.current
     const ease = 1 - Math.pow(0.001, delta)
     const homeZ = initialDistance.current
+    const entryProgress = initialRevealProgress?.current ?? 1
+
+    if (p === 0 && entryProgress < 1) {
+      const t = THREE.MathUtils.smoothstep(entryProgress, 0, 1)
+      camera.position.set(0, 0, homeZ + (1 - t) * 3.2)
+      currentLookAt.current.set(0, 0, 0)
+      camera.lookAt(currentLookAt.current)
+      return
+    }
 
     let targetX = 0
     let targetY = 0

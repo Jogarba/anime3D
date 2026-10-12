@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import {
+  WARP_APPROACH_START,
   WARP_TRAVERSE_START,
   WARP_TRAVERSE_END,
+  WARP_EXIT_TRAVEL,
 } from '../sceneSequence'
 import { AVATAR_MOODS } from '../constants/avatarMoods'
+
+const ORB_FLIGHT_START = WARP_APPROACH_START + 0.25
+const ORB_PORTAL_EXIT_PROGRESS = WARP_TRAVERSE_END + WARP_EXIT_TRAVEL
+const ORB_HOP_LEAD_IN = 0.45
 
 export default function LiquidGlassOrb({ progress, isVisible = true }) {
   const containerRef = useRef(null)
@@ -31,6 +37,7 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
   const rippleRingRef = useRef(null)
   const idleTimerRef = useRef(null)
   const moodTimeoutRef = useRef(null)
+  const orbIsInteractive = isVisible && progress?.current < ORB_PORTAL_EXIT_PROGRESS
 
   const changeMood = useCallback((newMood) => {
     if (moodRef.current !== newMood && AVATAR_MOODS[newMood]) {
@@ -65,24 +72,64 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
       const p = physicsRef.current
       const currentP = (progress && typeof progress.current === 'number') ? progress.current : 0
       const opacity = Number(document.documentElement.style.getPropertyValue('--login-opacity')) || 0
-      const hasTraversedCore = document.documentElement.dataset.cameraCrossedCore === 'true'
-      const warpActive = currentP >= WARP_TRAVERSE_START && hasTraversedCore
+      // Begin the orb's flight with the camera's approach so it leads the camera
+      // through the model core instead of appearing after the core crossing.
+      const warpActive = currentP >= ORB_FLIGHT_START
+      let portalHopPulse = 0
 
       // 1. Orbital position during normal state vs Portal Warp Flight
       if (containerRef.current) {
         containerRef.current.style.pointerEvents =
-          opacity > 0.3 && currentP < WARP_TRAVERSE_START ? 'auto' : 'none'
+          opacity > 0.3 && currentP < ORB_FLIGHT_START ? 'auto' : 'none'
         if (!warpActive) {
+          containerRef.current.style.transition = ''
           containerRef.current.style.transform = 'translate3d(-50%, 0px, 0px) scale(1)'
           containerRef.current.style.opacity = String(opacity)
         } else {
-          // Traverse phase: orb accelerates and dives through the aperture into singularity ahead of camera
-          const traverseT = THREE.MathUtils.smoothstep(currentP, WARP_TRAVERSE_START, WARP_TRAVERSE_END)
-          const orbY = -38 - traverseT * 6 // vh
-          const orbScale = Math.max(0.02, THREE.MathUtils.lerp(0.65, 0.04, traverseT))
-          const orbFade = Math.max(0, 1 - traverseT * 1.6)
-          containerRef.current.style.transform = `translate3d(-50%, ${orbY.toFixed(2)}vh, 0px) scale(${orbScale.toFixed(3)})`
-          containerRef.current.style.opacity = (opacity * orbFade).toFixed(3)
+          // The path is updated every frame, so avoid CSS transition lag behind the camera.
+          containerRef.current.style.transition = 'none'
+          // The orb enters ahead of the camera, then stays alongside the user
+          // throughout the tunnel instead of fading away at the portal.
+          const entryT = THREE.MathUtils.smoothstep(
+            currentP,
+            ORB_FLIGHT_START,
+            WARP_TRAVERSE_START,
+          )
+          const tunnelT = THREE.MathUtils.smoothstep(
+            currentP,
+            WARP_TRAVERSE_START,
+            ORB_PORTAL_EXIT_PROGRESS,
+          )
+          const fadeIn = THREE.MathUtils.smoothstep(
+            currentP,
+            ORB_FLIGHT_START,
+            ORB_FLIGHT_START + 0.14,
+          )
+          // Begin the orb's final arc slightly before the redirect so its
+          // movement has enough screen time to read clearly. Other transition
+          // elements remain driven by their original progress ranges.
+          const hopProgress = THREE.MathUtils.clamp(
+            (currentP - (WARP_TRAVERSE_END - ORB_HOP_LEAD_IN)) /
+              (WARP_EXIT_TRAVEL + ORB_HOP_LEAD_IN),
+            0,
+            1,
+          )
+          // A symmetric quintic curve avoids the abrupt upward snap of the
+          // previous ease-out and keeps the orb's full arc visibly fluid.
+          const hopT = hopProgress * hopProgress * hopProgress *
+            (hopProgress * (hopProgress * 6 - 15) + 10)
+          portalHopPulse = Math.sin(Math.PI * hopT)
+          const entryScale = THREE.MathUtils.lerp(0.95, 0.82, entryT)
+          const tunnelScale = entryScale - 0.05 * tunnelT
+          const orbScale = tunnelScale + 0.2 * portalHopPulse + 0.18 * hopT
+          // Keep the orb anchored near the bottom throughout the closed-shutter
+          // portion of the transition. It rises toward the portal only during
+          // the final hop, once the shutter starts opening.
+          const companionY = -2 * entryT
+          const orbY = THREE.MathUtils.lerp(companionY, -49, hopT) - 8 * portalHopPulse
+          const orbX = THREE.MathUtils.lerp(24 * tunnelT, -12, hopT)
+          containerRef.current.style.transform = `translate3d(calc(-50% + ${orbX.toFixed(2)}vw), ${orbY.toFixed(2)}vh, 0px) scale(${orbScale.toFixed(3)})`
+          containerRef.current.style.opacity = fadeIn.toFixed(3)
           if (moodRef.current !== 'excite') {
             changeMood('excite')
           }
@@ -137,7 +184,7 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
       // Aura glow breathing & propulsion
       if (glowRingRef.current) {
         if (warpActive) {
-          const glowScale = 1.45 + Math.sin(t * 18) * 0.35
+          const glowScale = 1.45 + Math.sin(t * 18) * 0.35 + portalHopPulse * 0.38
           glowRingRef.current.style.transform = `scale(${glowScale.toFixed(2)})`
           glowRingRef.current.style.opacity = '0.98'
         } else {
@@ -226,8 +273,6 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
     }
   }, [resetIdleTimer])
 
-  if (!isVisible) return null
-
   return (
     <aside
       ref={containerRef}
@@ -245,8 +290,9 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
       onClick={handleOrbClick}
       aria-label="Evolut AI Assistant Avatar"
       role="button"
-      tabIndex={0}
       title="Interactive Evolut avatar"
+      aria-hidden={!orbIsInteractive}
+      tabIndex={orbIsInteractive ? 0 : -1}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

@@ -11,7 +11,6 @@ export default function Navbar({
 }) {
   return (
     <header className="site-nav">
-      <div className="site-nav__progress" style={{ width: 'var(--scroll-percent, 0%)' }} />
       <a
         className="site-brand"
         href="#top"

@@ -13,9 +13,47 @@ function createHexLogoGeometry() {
   return geometry
 }
 
-export default function ModelCore({ groupRef, progress }) {
+export default function ModelCore({ groupRef, progress, isInitialLoading = false, isWarpingViaButton = false, dragRotation, onModelReady }) {
   const [gltfScene, setGltfScene] = useState(null)
   const [useFallback, setUseFallback] = useState(false)
+
+  const handlePointerDown = (event) => {
+    if (isInitialLoading || isWarpingViaButton || !dragRotation?.current) return
+    event.stopPropagation()
+    dragRotation.current.active = true
+    dragRotation.current.lastX = event.nativeEvent.clientX
+    dragRotation.current.lastY = event.nativeEvent.clientY
+    event.nativeEvent.target.style.cursor = 'grabbing'
+    event.target.setPointerCapture?.(event.pointerId)
+  }
+
+  const handlePointerMove = (event) => {
+    if (!dragRotation?.current?.active) return
+    event.stopPropagation()
+    const drag = dragRotation.current
+    const deltaX = event.nativeEvent.clientX - drag.lastX
+    const deltaY = event.nativeEvent.clientY - drag.lastY
+    drag.lastX = event.nativeEvent.clientX
+    drag.lastY = event.nativeEvent.clientY
+    drag.y = THREE.MathUtils.clamp(drag.y + deltaX * 0.008, -Math.PI * 2, Math.PI * 2)
+    drag.x = THREE.MathUtils.clamp(drag.x + deltaY * 0.008, -Math.PI / 2, Math.PI / 2)
+  }
+
+  const finishPointerDrag = (event) => {
+    if (!dragRotation?.current?.active) return
+    event.stopPropagation()
+    dragRotation.current.active = false
+    event.nativeEvent.target.style.cursor = 'grab'
+    event.target.releasePointerCapture?.(event.pointerId)
+  }
+
+  const handlePointerOver = (event) => {
+    if (!isInitialLoading && !isWarpingViaButton) event.nativeEvent.target.style.cursor = 'grab'
+  }
+
+  const handlePointerOut = (event) => {
+    if (!dragRotation?.current?.active) event.nativeEvent.target.style.cursor = ''
+  }
 
   const waveUniforms = useMemo(
     () => ({
@@ -97,12 +135,9 @@ export default function ModelCore({ groupRef, progress }) {
         float normCoordE = clamp((waveCoordE + 35.0) / 70.0, 0.0, 1.0);
         float waveDistE = normCoordE - u_waveProgress;
         float waveTE = smoothstep(-u_waveWidth, u_waveWidth, -waveDistE);
-
         vec3 currentEmissive = mix(u_emissiveA, u_emissiveB, waveTE);
-
         float crest = exp(-pow(waveDistE / (u_waveWidth * 0.42), 2.0));
         vec3 crestGlow = mix(currentEmissive, vec3(1.0, 1.0, 1.0), 0.15);
-
         totalEmissiveRadiance = currentEmissive * u_emissiveIntensity + crestGlow * (crest * 0.55);
         `
       )
@@ -140,9 +175,7 @@ export default function ModelCore({ groupRef, progress }) {
     gltfScene.traverse((child) => {
       if (!child.isMesh) return
       if (child.geometry) {
-        if (child.geometry.index) {
-          child.geometry = child.geometry.toNonIndexed()
-        }
+        if (child.geometry.index) child.geometry = child.geometry.toNonIndexed()
         child.geometry.deleteAttribute('color')
         child.geometry.center()
         child.geometry.computeVertexNormals()
@@ -151,30 +184,27 @@ export default function ModelCore({ groupRef, progress }) {
       child.castShadow = true
       child.receiveShadow = true
     })
-  }, [gltfScene, coreMat])
+    onModelReady?.()
+  }, [gltfScene, coreMat, onModelReady])
 
   useEffect(() => {
-    return () => {
-      coreMat.dispose()
-      fallbackGeometry.dispose()
-    }
+    if (useFallback) onModelReady?.()
+  }, [useFallback, onModelReady])
+
+  useEffect(() => () => {
+    coreMat.dispose()
+    fallbackGeometry.dispose()
   }, [coreMat, fallbackGeometry])
 
   useFrame((state) => {
-    if (!coreMat) return
-
     const currentP = progress?.current || 0
     const scrollFactor = currentP / TOTAL_SCROLL_PROGRESS
     const time = state.clock.getElapsedTime()
-
-    const waveSpeed = 0.26
-    const globalProgress = (time * waveSpeed + scrollFactor * 3.0) % EVOLUTION_STAGES.length
-
+    const globalProgress = (time * 0.26 + scrollFactor * 3.0) % EVOLUTION_STAGES.length
     const stageIndex = Math.floor(globalProgress)
     const nextIndex = (stageIndex + 1) % EVOLUTION_STAGES.length
     const localT = globalProgress - stageIndex
     const sweepProgress = -0.25 + localT * 1.5
-
     const stageA = EVOLUTION_STAGES[stageIndex]
     const stageB = EVOLUTION_STAGES[nextIndex]
 
@@ -184,22 +214,24 @@ export default function ModelCore({ groupRef, progress }) {
     waveUniforms.u_colorB.value.copy(stageB.coreColor)
     waveUniforms.u_emissiveA.value.copy(stageA.emissiveColor)
     waveUniforms.u_emissiveB.value.copy(stageB.emissiveColor)
-
-    const pulse = Math.sin(time * 2.2) * 0.15 + 0.85
-    waveUniforms.u_emissiveIntensity.value = pulse
+    waveUniforms.u_emissiveIntensity.value = Math.sin(time * 2.2) * 0.15 + 0.85
   })
 
   return (
-    <group ref={groupRef}>
+    <group
+      ref={groupRef}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
+      onPointerCancel={finishPointerDrag}
+      onLostPointerCapture={finishPointerDrag}
+    >
       {gltfScene ? (
         <primitive object={gltfScene} scale={0.065} rotation={[0, 0, 0]} />
       ) : useFallback ? (
-        <mesh
-          geometry={fallbackGeometry}
-          material={coreMat}
-          castShadow
-          receiveShadow
-        />
+        <mesh geometry={fallbackGeometry} material={coreMat} castShadow receiveShadow />
       ) : null}
     </group>
   )

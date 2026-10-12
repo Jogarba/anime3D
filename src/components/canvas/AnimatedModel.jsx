@@ -15,11 +15,12 @@ import {
   WARP_TRAVERSE_START,
 } from '../../sceneSequence'
 
-export default function AnimatedModel({ progress, isWarpingViaButton = false }) {
+export default function AnimatedModel({ progress, isWarpingViaButton = false, isInitialLoading = false, onModelReady }) {
   const group = useRef(null)
   const clickWave = useRef({ active: false, time: 0 })
   const frozenRotation = useRef(new THREE.Euler())
   const wasWarpingViaButton = useRef(false)
+  const dragRotation = useRef({ active: false, x: 0, y: 0, lastX: 0, lastY: 0 })
 
   useEffect(() => {
     const onWindowClick = () => {
@@ -42,6 +43,13 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false }) 
       return
     }
     group.current.visible = true
+
+    if (isInitialLoading) {
+      group.current.position.set(0, 0, 0)
+      group.current.rotation.set(0, 0, 0)
+      group.current.scale.setScalar(0.92)
+      return
+    }
 
     if (isWarpingViaButton && !wasWarpingViaButton.current) {
       frozenRotation.current.copy(group.current.rotation)
@@ -113,17 +121,15 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false }) 
     const smoothedScale = THREE.MathUtils.damp(currentScale, targetScale, 4.5, delta)
     group.current.scale.set(smoothedScale, smoothedScale, smoothedScale)
 
-    // 6. Interactive Cursor Following (active on Hero and Overview)
-    const ptrX = state.pointer.x || 0
-    const ptrY = state.pointer.y || 0
-    const mouseFollowX = ptrX * 0.22 * (activeMotion > 0 ? activeMotion : 0)
-    const mouseFollowY = ptrY * 0.16 * (activeMotion > 0 ? activeMotion : 0)
-    const mouseLookX = -ptrY * 0.32 * (activeMotion > 0 ? activeMotion : 0)
-    const mouseLookY = ptrX * 0.38 * (activeMotion > 0 ? activeMotion : 0)
+    // 6. The model only responds to a deliberate click-and-drag gesture.
+    if (!dragRotation.current.active) {
+      dragRotation.current.x = THREE.MathUtils.damp(dragRotation.current.x, 0, 3.5, delta)
+      dragRotation.current.y = THREE.MathUtils.damp(dragRotation.current.y, 0, 3.5, delta)
+    }
 
-    // 7. Fluid position damping
-    const targetX = driftX + mouseFollowX
-    const targetY = driftY + waterBobY + mouseFollowY
+    // 7. Fluid position damping, independent from cursor position.
+    const targetX = driftX
+    const targetY = driftY + waterBobY
     const targetZ = driftZ
     group.current.position.x = THREE.MathUtils.damp(group.current.position.x, targetX, 2.8, delta)
     group.current.position.y = THREE.MathUtils.damp(group.current.position.y, targetY, 2.8, delta)
@@ -169,8 +175,8 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false }) 
       scrollRotZ = -Math.PI * 2
     }
 
-    const targetRotX = bioTiltX + waterBobRotX + mouseLookX
-    const targetRotY = initialTurnY + bioTiltY + mouseLookY
+    const targetRotX = bioTiltX + waterBobRotX + dragRotation.current.x
+    const targetRotY = initialTurnY + bioTiltY + dragRotation.current.y
     const targetRotZ = scrollRotZ + bioTiltZ
 
     if (isWarpingViaButton) {
@@ -182,5 +188,13 @@ export default function AnimatedModel({ progress, isWarpingViaButton = false }) 
     }
   })
 
-  return <ModelCore groupRef={group} progress={progress} />
+  return (
+    <ModelCore
+      groupRef={group}
+      isInitialLoading={isInitialLoading}
+      isWarpingViaButton={isWarpingViaButton}
+      dragRotation={dragRotation}
+      onModelReady={onModelReady}
+    />
+  )
 }

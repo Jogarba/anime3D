@@ -18,7 +18,6 @@ export default function PortalPanel({ section, active, isMobile, sectionProgress
       className={`portal-panel${active ? ' portal-panel--active' : ''}${isBusinessCase ? ' portal-panel--wide' : ''}`}
       aria-labelledby={`${section.id}-title`}
       aria-hidden={!isMobile && !active}
-      hidden={!isMobile && !active}
       data-p-from={String(sectionProgress)}
       data-p-to={String(sectionProgress)}
     >
