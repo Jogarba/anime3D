@@ -262,19 +262,18 @@ export function useScrollChoreography(isMobileRef) {
 
   // Track mobile regions
   useEffect(() => {
-    let ro = null
+    let active = true
 
     const rebuild = () => {
+      if (!active) return
       const container = document.querySelector('.portal-content')
       mobileRegionsRef.current = buildMobileRegions(container)
       ScrollTrigger.refresh()
     }
 
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => rebuild())
-    }
+    const observer = new ResizeObserver(rebuild)
     const container = document.querySelector('.portal-content')
-    if (ro && container) ro.observe(container)
+    if (container) observer.observe(container)
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(rebuild)
     }
@@ -283,8 +282,9 @@ export function useScrollChoreography(isMobileRef) {
     rebuild()
 
     return () => {
+      active = false
       window.removeEventListener('resize', rebuild)
-      if (ro) ro.disconnect()
+      observer.disconnect()
     }
   }, [])
 
@@ -316,8 +316,7 @@ export function useScrollChoreography(isMobileRef) {
     root.dataset.cameraCrossedCore = 'false'
     root.dataset.modelOverview = 'true'
 
-    let frame = 0
-    let last = 0
+    let loopActive = false
 
     const apply = () => {
       if (isRedirectingRef.current) return
@@ -413,24 +412,28 @@ export function useScrollChoreography(isMobileRef) {
       }
     }
 
-    const loop = (now) => {
+    const stopLoop = () => {
+      if (!loopActive) return
+      gsap.ticker.remove(loop)
+      loopActive = false
+    }
+
+    const loop = (_time, deltaTime) => {
       if (isWarpingViaButtonRef.current || isRedirectingRef.current || redirectTriggeredRef.current) {
-        frame = 0
+        stopLoop()
         return
       }
-      const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000))
-      last = now
+      const dt = Math.min(0.05, Math.max(0.001, deltaTime / 1000))
       const speed = isMobileRef.current ? 12 : 7
       const k = 1 - Math.exp(-speed * dt)
       const raw = rawProgressRef.current
       progress.current += (raw - progress.current) * k
       if (Math.abs(raw - progress.current) > 0.0005) {
         apply()
-        frame = requestAnimationFrame(loop)
       } else {
         progress.current = raw
         apply()
-        frame = 0
+        stopLoop()
       }
     }
 
@@ -446,9 +449,9 @@ export function useScrollChoreography(isMobileRef) {
           ? TOTAL_SCROLL_PROGRESS
           : scrollRatio * TOTAL_SCROLL_PROGRESS
       }
-      if (!frame) {
-        last = performance.now()
-        frame = requestAnimationFrame(loop)
+      if (!loopActive) {
+        loopActive = true
+        gsap.ticker.add(loop)
       }
     }
 
@@ -592,7 +595,8 @@ export function useScrollChoreography(isMobileRef) {
 
     return () => {
       scrollTrigger.kill()
-      if (frame) cancelAnimationFrame(frame)
+      gsap.ticker.remove(loop)
+      loopActive = false
       if (directNavigationFrameRef.current) cancelAnimationFrame(directNavigationFrameRef.current)
       if (navigationTransitionTimerRef.current) clearTimeout(navigationTransitionTimerRef.current)
       directNavigationRef.current = null

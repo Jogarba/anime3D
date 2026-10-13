@@ -39,14 +39,14 @@ export default function MobileMenu({
         >
           Start <span aria-hidden="true">→</span>
         </a>
-        <a
+        <button
           className="mobile-menu__btn mobile-menu__btn--ghost"
-          href="#book-demo"
+          type="button"
           tabIndex={menuOpen ? 0 : -1}
           onClick={onDemoClick}
         >
           Book a demo <span aria-hidden="true">↗</span>
-        </a>
+        </button>
       </div>
       <p className="mobile-menu__foot">© 2026 Evolut Premium Solutions Inc.</p>
     </div>

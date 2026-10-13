@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import ModelCore from './ModelCore'
@@ -27,13 +27,13 @@ function lerpShortestAngle(from, to, progress) {
 export default function AnimatedModel({ progress, navigationAnimation, isWarpingViaButton = false, isInitialLoading = false, onModelReady }) {
   const group = useRef(null)
   const clickWave = useRef({ active: false, time: 0 })
-  const frozenRotation = useRef(new THREE.Euler())
-  const navigationPose = useRef({
+  const frozenRotation = useMemo(() => new THREE.Euler(), [])
+  const navigationPose = useMemo(() => ({
     id: -1,
     rotation: new THREE.Euler(),
     position: new THREE.Vector3(),
     scale: 0.92,
-  })
+  }), [])
   const wasWarpingViaButton = useRef(false)
   const dragRotation = useRef({ active: false, x: 0, y: 0, lastX: 0, lastY: 0 })
 
@@ -48,7 +48,7 @@ export default function AnimatedModel({ progress, navigationAnimation, isWarping
   useFrame((state, delta) => {
     if (!group.current) return
     const p = progress.current
-    const time = state.clock.getElapsedTime()
+    const time = state.clock.elapsedTime
 
     // Keep the model visible until the camera physically crosses its core.
     // Hiding it at the progress boundary leaves a blank frame while the camera

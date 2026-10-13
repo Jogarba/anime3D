@@ -11,6 +11,7 @@ export default function DimensionalWormhole({ progress }) {
   const tunnelGroup = useRef(null)
   const cylinderRef = useRef(null)
   const ringCount = 15
+  const elapsedRef = useRef(0)
 
   const ringsData = useMemo(() => {
     return Array.from({ length: ringCount }, (_, i) => {
@@ -21,7 +22,8 @@ export default function DimensionalWormhole({ progress }) {
     })
   }, [ringCount])
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
+    elapsedRef.current += delta
     if (!tunnelGroup.current) return
     const p = progress.current
     if (p < WARP_TRAVERSE_START || !state.camera.userData.hasTraversedCore) {
@@ -31,7 +33,7 @@ export default function DimensionalWormhole({ progress }) {
 
     tunnelGroup.current.visible = true
     const warpProgress = THREE.MathUtils.smoothstep(p, WARP_TRAVERSE_START, WARP_TRAVERSE_END)
-    const t = state.clock.getElapsedTime()
+    const t = elapsedRef.current
 
     // Stately hexagonal drift
     tunnelGroup.current.rotation.z = t * 0.08
@@ -55,7 +57,7 @@ export default function DimensionalWormhole({ progress }) {
     <group ref={tunnelGroup} position={[0, 0, 0]} visible={false}>
       {/* 10 Crisp Hexagonal Blueprint Rings */}
       {ringsData.map((ring, idx) => (
-        <group key={idx} position={[0, 0, ring.z]}>
+        <group key={ring.z} position={[0, 0, ring.z]}>
           <mesh userData={{ baseOp: 0.45 - idx * 0.025 }}>
             <ringGeometry args={[ring.radius * 0.985, ring.radius, 6]} />
             <meshBasicMaterial

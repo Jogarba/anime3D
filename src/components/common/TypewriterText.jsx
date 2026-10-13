@@ -10,27 +10,35 @@ export default function TypewriterText({
   enabled = true,
   restartKey = 0,
 }) {
-  const [count, setCount] = useState(0)
+  const identity = `${text}\u0000${speed}\u0000${delay}\u0000${enabled}\u0000${restartKey}`
+  const [typing, setTyping] = useState({ identity: '', count: 0 })
+  const [reducedMotion, setReducedMotion] = useState(false)
+  const count = reducedMotion && enabled
+    ? text.length
+    : typing.identity === identity ? typing.count : 0
 
   useEffect(() => {
-    setCount(0)
+    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mediaQuery) return undefined
+
+    const updatePreference = () => setReducedMotion(mediaQuery.matches)
+    updatePreference()
+    mediaQuery.addEventListener?.('change', updatePreference)
+    return () => mediaQuery.removeEventListener?.('change', updatePreference)
+  }, [])
+
+  useEffect(() => {
     if (!text) return undefined
     if (!enabled) return undefined
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
-      setCount(text.length)
-      return undefined
-    }
+    if (reducedMotion) return undefined
 
     let intervalId
     const startId = window.setTimeout(() => {
+      let visibleCharacters = 0
       intervalId = window.setInterval(() => {
-        setCount((prev) => {
-          if (prev + 1 >= text.length) {
-            window.clearInterval(intervalId)
-            return text.length
-          }
-          return prev + 1
-        })
+        visibleCharacters += 1
+        setTyping({ identity, count: Math.min(visibleCharacters, text.length) })
+        if (visibleCharacters >= text.length) window.clearInterval(intervalId)
       }, Math.max(8, speed))
     }, Math.max(0, delay))
 
@@ -38,7 +46,7 @@ export default function TypewriterText({
       window.clearTimeout(startId)
       if (intervalId) window.clearInterval(intervalId)
     }
-  }, [text, speed, delay, enabled, restartKey])
+  }, [text, speed, delay, enabled, restartKey, identity, reducedMotion])
 
   const done = count >= text.length
 

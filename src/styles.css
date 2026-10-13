@@ -287,6 +287,8 @@ body {
   box-shadow: 0 2px 14px rgba(75, 142, 255, 0.35);
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
+  cursor: pointer;
+  line-height: normal;
 }
 
 .site-nav__cta:hover {
@@ -2456,6 +2458,9 @@ body {
   text-decoration: none;
   box-shadow: inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.5), 0 12px 30px rgba(37, 99, 235, 0.4), 0 0 20px rgba(96, 165, 250, 0.3);
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.95rem;
+  line-height: normal;
+  cursor: pointer;
 }
 
 .portal-cta:hover {
@@ -2468,6 +2473,11 @@ body {
   font: 600 0.84rem var(--font-mono);
   text-decoration: none;
   transition: color 180ms ease, text-shadow 180ms ease;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  cursor: pointer;
 }
 
 .portal-cta-secondary:hover {
@@ -2621,10 +2631,10 @@ html .model-view--initial-loading > .initial-watermark {
   height: 100%;
   object-fit: contain;
   transform-origin: center center;
-  transform: translateZ(0);
+  transform: translate3d(0, 0, 0);
   will-change: transform;
   backface-visibility: hidden;
-  animation: loaderWheelSpin var(--loader-duration) linear forwards;
+  animation: loaderWheelSpin calc(var(--loader-duration) * 0.44) linear both;
 }
 
 @keyframes loaderDarknessSweep {
@@ -2647,11 +2657,8 @@ html .model-view--initial-loading > .initial-watermark {
 }
 
 @keyframes loaderWheelSpin {
-  0% {
-    transform: rotate(0deg);
-    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
-  }
-  44%, 46%, 100% { transform: rotate(360deg); }
+  from { transform: translate3d(0, 0, 0) rotate(0deg); }
+  to { transform: translate3d(0, 0, 0) rotate(540deg); }
 }
 
 @keyframes loaderWordmarkReveal {
@@ -2880,6 +2887,7 @@ html .model-view--initial-loading > .initial-watermark {
   text-decoration: none;
   touch-action: manipulation;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
 }
 
 .mobile-menu__btn:active {
@@ -3449,6 +3457,11 @@ html .model-view--initial-loading > .initial-watermark {
   transition: opacity 260ms cubic-bezier(0.16, 1, 0.3, 1), transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
   background: transparent;
   border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  appearance: none;
   outline: none;
   user-select: none;
   -webkit-user-select: none;
@@ -4673,6 +4686,12 @@ html .model-view--initial-loading > .initial-watermark {
   position: fixed;
   z-index: 30;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
   display: grid;
   place-items: center;
   overflow-y: auto;
@@ -4681,6 +4700,11 @@ html .model-view--initial-loading > .initial-watermark {
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   animation: demo-overlay-in 500ms ease both;
+  color: inherit;
+}
+
+.demo-overlay::backdrop {
+  background: transparent;
 }
 
 .portal-content--demo-open .portal-panel {

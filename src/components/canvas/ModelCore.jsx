@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { Component, useEffect, useMemo, useRef } from 'react'
+import { useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as THREE from 'three'
 import { EVOLUTION_STAGES } from '../../constants/evolutionStages'
@@ -13,9 +13,21 @@ function createHexLogoGeometry() {
   return geometry
 }
 
+function clonePreparedGeometry(sourceGeometry) {
+  let geometry = new THREE.BufferGeometry().copy(sourceGeometry)
+  if (geometry.index) {
+    const nonIndexedGeometry = geometry.toNonIndexed()
+    geometry.dispose()
+    geometry = nonIndexedGeometry
+  }
+  geometry.deleteAttribute('color')
+  geometry.center()
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 export default function ModelCore({ groupRef, progress, isInitialLoading = false, isWarpingViaButton = false, dragRotation, onModelReady }) {
-  const [gltfScene, setGltfScene] = useState(null)
-  const [useFallback, setUseFallback] = useState(false)
+  const elapsedRef = useRef(0)
 
   const handlePointerDown = (event) => {
     if (isInitialLoading || isWarpingViaButton || !dragRotation?.current) return
@@ -80,9 +92,8 @@ export default function ModelCore({ groupRef, progress, isInitialLoading = false
       roughness: 0.015,
       clearcoat: 1.0,
       clearcoatRoughness: 0.01,
-      reflectivity: 1.0,
       envMapIntensity: 4.8,
-      ior: 2.4,
+      ior: 2.333,
     })
 
     cMat.onBeforeCompile = (shader) => {
@@ -146,60 +157,16 @@ export default function ModelCore({ groupRef, progress, isInitialLoading = false
     return { coreMat: cMat }
   }, [waveUniforms])
 
-  useEffect(() => {
-    let cancelled = false
-    const loader = new GLTFLoader()
-
-    loader.load(
-      MODEL_URL,
-      (gltf) => {
-        if (cancelled) return
-        setGltfScene(gltf.scene)
-        setUseFallback(false)
-      },
-      undefined,
-      () => {
-        if (cancelled) return
-        setGltfScene(null)
-        setUseFallback(true)
-      }
-    )
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!gltfScene) return
-    gltfScene.traverse((child) => {
-      if (!child.isMesh) return
-      if (child.geometry) {
-        if (child.geometry.index) child.geometry = child.geometry.toNonIndexed()
-        child.geometry.deleteAttribute('color')
-        child.geometry.center()
-        child.geometry.computeVertexNormals()
-      }
-      child.material = coreMat
-      child.castShadow = true
-      child.receiveShadow = true
-    })
-    onModelReady?.()
-  }, [gltfScene, coreMat, onModelReady])
-
-  useEffect(() => {
-    if (useFallback) onModelReady?.()
-  }, [useFallback, onModelReady])
-
   useEffect(() => () => {
     coreMat.dispose()
     fallbackGeometry.dispose()
   }, [coreMat, fallbackGeometry])
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     const currentP = progress?.current || 0
     const scrollFactor = currentP / TOTAL_SCROLL_PROGRESS
-    const time = state.clock.getElapsedTime()
+    elapsedRef.current += delta
+    const time = elapsedRef.current
     const globalProgress = (time * 0.26 + scrollFactor * 3.0) % EVOLUTION_STAGES.length
     const stageIndex = Math.floor(globalProgress)
     const nextIndex = (stageIndex + 1) % EVOLUTION_STAGES.length
@@ -228,11 +195,58 @@ export default function ModelCore({ groupRef, progress, isInitialLoading = false
       onPointerCancel={finishPointerDrag}
       onLostPointerCapture={finishPointerDrag}
     >
-      {gltfScene ? (
-        <primitive object={gltfScene} scale={0.065} rotation={[0, 0, 0]} />
-      ) : useFallback ? (
-        <mesh geometry={fallbackGeometry} material={coreMat} castShadow receiveShadow />
-      ) : null}
+      <ModelLoadBoundary
+        fallback={<ModelFallback geometry={fallbackGeometry} material={coreMat} onReady={onModelReady} />}
+      >
+        <LoadedModel coreMat={coreMat} onReady={onModelReady} />
+      </ModelLoadBoundary>
     </group>
   )
+}
+
+function LoadedModel({ coreMat, onReady }) {
+  const { scene } = useLoader(GLTFLoader, MODEL_URL)
+  const model = useMemo(() => {
+    const clone = scene.clone(true)
+    clone.traverse((child) => {
+      if (!child.isMesh || !child.geometry) return
+      child.geometry = clonePreparedGeometry(child.geometry)
+    })
+    return clone
+  }, [scene])
+
+  useEffect(() => {
+    model.traverse((child) => {
+      if (!child.isMesh) return
+      child.material = coreMat
+      child.castShadow = true
+      child.receiveShadow = true
+    })
+    onReady?.()
+  }, [model, coreMat, onReady])
+
+  useEffect(() => () => {
+      model.traverse((child) => {
+        if (child.isMesh) child.geometry?.dispose()
+      })
+  }, [model])
+
+  return <primitive object={model} scale={0.065} rotation={[0, 0, 0]} />
+}
+
+function ModelFallback({ geometry, material, onReady }) {
+  useEffect(() => onReady?.(), [onReady])
+  return <mesh geometry={geometry} material={material} castShadow receiveShadow />
+}
+
+class ModelLoadBoundary extends Component {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children
+  }
 }

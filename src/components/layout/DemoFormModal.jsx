@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const teamSizes = ['1–5 engineers', '6–20 engineers', '21–50 engineers', '51+ engineers']
 
 export default function DemoFormModal({ onClose }) {
   const [submitted, setSubmitted] = useState(false)
+  const dialogRef = useRef(null)
 
   useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') onClose()
+    const dialog = dialogRef.current
+    if (!dialog) return undefined
+    dialog.showModal()
+    return () => {
+      if (dialog.open) dialog.close()
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
   const handleSubmit = (event) => {
@@ -19,8 +21,13 @@ export default function DemoFormModal({ onClose }) {
   }
 
   return (
-    <div className="demo-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="demo-modal" role="dialog" aria-modal="true" aria-labelledby="demo-modal-title">
+    <dialog
+      ref={dialogRef}
+      className="demo-overlay"
+      aria-labelledby="demo-modal-title"
+      onCancel={(event) => { event.preventDefault(); onClose() }}
+    >
+      <section className="demo-modal">
         <button className="demo-modal__close" type="button" onClick={onClose} aria-label="Close demo form">×</button>
         <p className="demo-modal__eyebrow"><span />EVOLUT / LIVE WALKTHROUGH</p>
         <h2 id="demo-modal-title">Book a Free Demo</h2>
@@ -65,6 +72,6 @@ export default function DemoFormModal({ onClose }) {
           </form>
         )}
       </section>
-    </div>
+    </dialog>
   )
 }

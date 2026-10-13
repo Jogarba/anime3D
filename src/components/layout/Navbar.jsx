@@ -44,15 +44,15 @@ export default function Navbar({
         >
           Start
         </a>
-        <a
+        <button
           className="site-nav__cta"
-          href="#book-demo"
+          type="button"
           onClick={onDemoClick}
           onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
           onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
         >
           Book a demo <span aria-hidden="true">↗</span>
-        </a>
+        </button>
       </div>
       <button
         type="button"

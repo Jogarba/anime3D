@@ -62,23 +62,23 @@ export default function PortalPanel({ section, active, isMobile, sectionProgress
               {section.cta && (
                 <div className="portal-cta-group">
                   {section.secondaryCta && (
-                    <a
+                    <button
                       className="portal-cta-secondary"
-                      href="#book-demo"
+                      type="button"
                       onClick={onDemoClick}
                     >
                       {section.secondaryCta}<span aria-hidden="true"> →</span>
-                    </a>
+                    </button>
                   )}
-                  <a
+                  <button
                     className="portal-cta"
-                    href="#book-demo"
+                    type="button"
                     onClick={onDemoClick}
                     onMouseEnter={(e) => animate(e.currentTarget, { scale: 1.04, duration: 250, ease: 'outQuad' })}
                     onMouseLeave={(e) => animate(e.currentTarget, { scale: 1, duration: 300, ease: 'outQuad' })}
                   >
                     {section.cta}<span aria-hidden="true">↗</span>
-                  </a>
+                  </button>
                   {section.ctaNote && <span>{section.ctaNote}</span>}
                 </div>
               )}
