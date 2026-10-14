@@ -13,7 +13,6 @@ export default function CameraIrisShutter({ progress }) {
   const bladesGroup = useRef([])
   const ringRef = useRef(null)
   const apertureSealRef = useRef(null)
-  const elapsedRef = useRef(0)
 
   // Geometric mechanical camera shutter blade profile (60° angled wedge)
   const bladeShape = useMemo(() => {
@@ -32,8 +31,7 @@ export default function CameraIrisShutter({ progress }) {
     return new THREE.EdgesGeometry(geom)
   }, [bladeShape])
 
-  useFrame((state, delta) => {
-    elapsedRef.current += delta
+  useFrame((state) => {
     if (!irisGroup.current) return
     const p = progress.current
     if (p < WARP_TRAVERSE_START || !state.camera.userData.hasTraversedCore) {
@@ -42,7 +40,7 @@ export default function CameraIrisShutter({ progress }) {
     }
 
     irisGroup.current.visible = true
-    const t = elapsedRef.current
+    const t = state.clock.getElapsedTime()
 
     // Finish opening as the camera travels through the shutter on its way out.
     const scrollOpen = state.camera.userData.hasTraversedCore

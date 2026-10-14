@@ -3,7 +3,7 @@ import { isMobileViewport } from '../constants/breakpoints'
 
 export function useMobile() {
   const [isMobile, setIsMobile] = useState(isMobileViewport)
-  const isMobileRef = useRef(isMobile)
+  const isMobileRef = useRef(isMobileViewport())
 
   useEffect(() => {
     const onResize = () => {

@@ -124,7 +124,7 @@ export default function HeroView({ isActive = false }) {
             <div className="hero-terminal__logs">
               {logs.map((log, index) => (
                 <p
-                  key={`hero-log-${typingRun}-${log.text}`}
+                  key={`hero-log-${typingRun}-${index}`}
                   className={`t-log ${log.className} terminal-output-line`}
                   style={{ animationDelay: `${log.delay}ms` }}
                 >
