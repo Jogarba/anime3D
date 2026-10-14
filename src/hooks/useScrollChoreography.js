@@ -31,6 +31,32 @@ gsap.registerPlugin(ScrollTrigger)
 const WARP_SESSION_KEY = 'evolut_warp_redirected'
 const REDIRECT_TRANSITION_MS = 180
 
+function createCancellableRafLoop(callback) {
+  let frameId = 0
+  let running = false
+
+  const tick = (now) => {
+    frameId = 0
+    if (!running) return
+    running = callback(now)
+    if (running) frameId = requestAnimationFrame(tick)
+  }
+
+  return {
+    isRunning: () => running,
+    start: () => {
+      if (running) return
+      running = true
+      frameId = requestAnimationFrame(tick)
+    },
+    stop: () => {
+      running = false
+      if (frameId) cancelAnimationFrame(frameId)
+      frameId = 0
+    },
+  }
+}
+
 function getWarpRedirected() {
   try {
     return window.sessionStorage.getItem(WARP_SESSION_KEY) === '1'
@@ -262,29 +288,29 @@ export function useScrollChoreography(isMobileRef) {
 
   // Track mobile regions
   useEffect(() => {
-    let ro = null
+    let disposed = false
 
     const rebuild = () => {
+      if (disposed) return
       const container = document.querySelector('.portal-content')
       mobileRegionsRef.current = buildMobileRegions(container)
       ScrollTrigger.refresh()
     }
 
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(() => rebuild())
-    }
     const container = document.querySelector('.portal-content')
-    if (ro && container) ro.observe(container)
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(rebuild)
-    }
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(rebuild)
+      : null
+    if (container && resizeObserver) resizeObserver.observe(container)
 
     window.addEventListener('resize', rebuild)
     rebuild()
 
     return () => {
+      disposed = true
       window.removeEventListener('resize', rebuild)
-      if (ro) ro.disconnect()
+      if (container && resizeObserver) resizeObserver.unobserve(container)
+      resizeObserver?.disconnect()
     }
   }, [])
 
@@ -316,7 +342,6 @@ export function useScrollChoreography(isMobileRef) {
     root.dataset.cameraCrossedCore = 'false'
     root.dataset.modelOverview = 'true'
 
-    let frame = 0
     let last = 0
 
     const apply = () => {
@@ -415,8 +440,7 @@ export function useScrollChoreography(isMobileRef) {
 
     const loop = (now) => {
       if (isWarpingViaButtonRef.current || isRedirectingRef.current || redirectTriggeredRef.current) {
-        frame = 0
-        return
+        return false
       }
       const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000))
       last = now
@@ -426,13 +450,14 @@ export function useScrollChoreography(isMobileRef) {
       progress.current += (raw - progress.current) * k
       if (Math.abs(raw - progress.current) > 0.0005) {
         apply()
-        frame = requestAnimationFrame(loop)
+        return true
       } else {
         progress.current = raw
         apply()
-        frame = 0
+        return false
       }
     }
+    const scrollLoop = createCancellableRafLoop(loop)
 
     const syncScrollProgress = () => {
       if (isRedirectingRef.current || redirectTriggeredRef.current || directNavigationActiveRef.current) return
@@ -446,9 +471,9 @@ export function useScrollChoreography(isMobileRef) {
           ? TOTAL_SCROLL_PROGRESS
           : scrollRatio * TOTAL_SCROLL_PROGRESS
       }
-      if (!frame) {
+      if (!scrollLoop.isRunning()) {
         last = performance.now()
-        frame = requestAnimationFrame(loop)
+        scrollLoop.start()
       }
     }
 
@@ -592,7 +617,7 @@ export function useScrollChoreography(isMobileRef) {
 
     return () => {
       scrollTrigger.kill()
-      if (frame) cancelAnimationFrame(frame)
+      scrollLoop.stop()
       if (directNavigationFrameRef.current) cancelAnimationFrame(directNavigationFrameRef.current)
       if (navigationTransitionTimerRef.current) clearTimeout(navigationTransitionTimerRef.current)
       directNavigationRef.current = null

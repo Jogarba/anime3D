@@ -11,26 +11,22 @@ export default function TypewriterText({
   restartKey = 0,
 }) {
   const [count, setCount] = useState(0)
+  const prefersReducedMotion = typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
 
   useEffect(() => {
     setCount(0)
     if (!text) return undefined
     if (!enabled) return undefined
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
-      setCount(text.length)
-      return undefined
-    }
+    if (prefersReducedMotion) return undefined
 
     let intervalId
+    let currentCount = 0
     const startId = window.setTimeout(() => {
       intervalId = window.setInterval(() => {
-        setCount((prev) => {
-          if (prev + 1 >= text.length) {
-            window.clearInterval(intervalId)
-            return text.length
-          }
-          return prev + 1
-        })
+        currentCount = Math.min(currentCount + 1, text.length)
+        setCount(currentCount)
+        if (currentCount >= text.length) window.clearInterval(intervalId)
       }, Math.max(8, speed))
     }, Math.max(0, delay))
 
@@ -38,13 +34,14 @@ export default function TypewriterText({
       window.clearTimeout(startId)
       if (intervalId) window.clearInterval(intervalId)
     }
-  }, [text, speed, delay, enabled, restartKey])
+  }, [text, speed, delay, enabled, restartKey, prefersReducedMotion])
 
-  const done = count >= text.length
+  const visibleCount = enabled && prefersReducedMotion ? text.length : count
+  const done = visibleCount >= text.length
 
   return (
     <span className={className} aria-label={text}>
-      {text.slice(0, count)}
+      {text.slice(0, visibleCount)}
       {showCursor && (!done || cursorWhenDone) ? (
         <span className="liquid-cursor" aria-hidden="true">
           |

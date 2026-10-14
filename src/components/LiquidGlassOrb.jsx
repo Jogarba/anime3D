@@ -274,7 +274,8 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
   }, [resetIdleTimer])
 
   return (
-    <aside
+    <button
+      type="button"
       ref={containerRef}
       className={`liquid-orb-container bloub-avatar-root ${
         isHovered ? 'bloub-avatar--hovered' : ''
@@ -289,16 +290,9 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
       onMouseLeave={handleMouseLeave}
       onClick={handleOrbClick}
       aria-label="Evolut AI Assistant Avatar"
-      role="button"
       title="Interactive Evolut avatar"
       aria-hidden={!orbIsInteractive}
       tabIndex={orbIsInteractive ? 0 : -1}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          handleOrbClick()
-        }
-      }}
     >
       {/* Dynamic Ambient Aura Glow */}
       <div ref={glowRingRef} className="siri-glow-ring bloub-aura-glow" aria-hidden="true" />
@@ -322,6 +316,6 @@ export default function LiquidGlassOrb({ progress, isVisible = true }) {
           )
         })}
       </div>
-    </aside>
+    </button>
   )
 }

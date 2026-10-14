@@ -1,16 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const teamSizes = ['1–5 engineers', '6–20 engineers', '21–50 engineers', '51+ engineers']
 
 export default function DemoFormModal({ onClose }) {
   const [submitted, setSubmitted] = useState(false)
+  const overlayRef = useRef(null)
 
   useEffect(() => {
+    const overlay = overlayRef.current
+    const onOverlayMouseDown = (event) => {
+      if (event.target === event.currentTarget) onClose()
+    }
     const onKeyDown = (event) => {
       if (event.key === 'Escape') onClose()
     }
+    overlay?.addEventListener('mousedown', onOverlayMouseDown)
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    return () => {
+      overlay?.removeEventListener('mousedown', onOverlayMouseDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
   }, [onClose])
 
   const handleSubmit = (event) => {
@@ -19,12 +28,21 @@ export default function DemoFormModal({ onClose }) {
   }
 
   return (
-    <div className="demo-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="demo-modal" role="dialog" aria-modal="true" aria-labelledby="demo-modal-title">
+    <dialog
+      id="book-demo"
+      open
+      className="demo-overlay"
+      aria-modal="true"
+      aria-labelledby="demo-modal-title"
+      aria-describedby="demo-modal-description"
+      ref={overlayRef}
+      style={{ width: 'auto', height: 'auto', maxWidth: 'none', maxHeight: 'none', margin: 0, border: 0, color: 'inherit' }}
+    >
+      <section className="demo-modal">
         <button className="demo-modal__close" type="button" onClick={onClose} aria-label="Close demo form">×</button>
-        <p className="demo-modal__eyebrow"><span />EVOLUT / LIVE WALKTHROUGH</p>
+        <p id="demo-modal-description" className="demo-modal__eyebrow"><span />EVOLUT / LIVE WALKTHROUGH</p>
         <h2 id="demo-modal-title">Book a Free Demo</h2>
-        <div className="demo-modal__badges" aria-label="Demo details">
+        <div className="demo-modal__badges" role="group" aria-label="Demo details">
           <span>30-min session</span><span>No commitment</span><span>Your env runs live</span>
         </div>
 
@@ -65,6 +83,6 @@ export default function DemoFormModal({ onClose }) {
           </form>
         )}
       </section>
-    </div>
+    </dialog>
   )
 }

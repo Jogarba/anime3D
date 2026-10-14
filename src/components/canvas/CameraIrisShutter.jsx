@@ -40,7 +40,7 @@ export default function CameraIrisShutter({ progress }) {
     }
 
     irisGroup.current.visible = true
-    const t = state.clock.getElapsedTime()
+    const t = state.clock.elapsedTime
 
     // Finish opening as the camera travels through the shutter on its way out.
     const scrollOpen = state.camera.userData.hasTraversedCore

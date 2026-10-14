@@ -215,6 +215,7 @@ export default function App() {
           <strong>Evolut</strong>
           <span><span className="initial-watermark__copyright-symbol">©</span> Soluciones Evolut Premium 2026</span>
           <p>Refinación de la infraestructura global</p>
+          <p className="initial-watermark__right">Plataforma de infraestructura tecnológica automatizada</p>
         </footer>
 
         <AmbientBackdrop isMobile={isMobile} />

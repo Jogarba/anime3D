@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
@@ -15,16 +15,16 @@ import {
 export default function ResponsiveCamera({ progress, navigationAnimation, initialRevealProgress, demoCameraRequest }) {
   const { camera, size } = useThree()
   const initialDistance = useRef(6)
-  const currentLookAt = useRef(new THREE.Vector3(0, 0, 0))
-  const navigationPose = useRef({
+  const currentLookAt = useRef(useMemo(() => new THREE.Vector3(0, 0, 0), []))
+  const navigationPose = useRef(useMemo(() => ({
     id: -1,
     position: new THREE.Vector3(),
     lookAt: new THREE.Vector3(),
-  })
-  const navigationTargetPosition = useRef(new THREE.Vector3())
-  const navigationTargetLookAt = useRef(new THREE.Vector3())
+  }), []))
+  const navigationTargetPosition = useRef(useMemo(() => new THREE.Vector3(), []))
+  const navigationTargetLookAt = useRef(useMemo(() => new THREE.Vector3(), []))
   const wasPastCore = useRef(false)
-  const demoCamera = useRef({ id: -1, open: false, transitioning: false, elapsed: 0, fromPosition: new THREE.Vector3(), fromLookAt: new THREE.Vector3(), toPosition: new THREE.Vector3(), toLookAt: new THREE.Vector3(), returnPosition: new THREE.Vector3(), returnLookAt: new THREE.Vector3() })
+  const demoCamera = useRef(useMemo(() => ({ id: -1, open: false, transitioning: false, elapsed: 0, fromPosition: new THREE.Vector3(), fromLookAt: new THREE.Vector3(), toPosition: new THREE.Vector3(), toLookAt: new THREE.Vector3(), returnPosition: new THREE.Vector3(), returnLookAt: new THREE.Vector3() }), []))
 
   useEffect(() => {
     const aspect = size.width / Math.max(size.height, 1)

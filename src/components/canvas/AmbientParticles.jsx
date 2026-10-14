@@ -18,7 +18,7 @@ export default function AmbientParticles({ count = 130 }) {
 
   useFrame((state) => {
     if (!points.current) return
-    const t = state.clock.getElapsedTime() * 0.16
+    const t = state.clock.elapsedTime * 0.16
     points.current.rotation.y = t * 0.35
     points.current.rotation.x = Math.sin(t * 0.25) * 0.12
   })

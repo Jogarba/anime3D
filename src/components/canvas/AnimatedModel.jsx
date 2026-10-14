@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import ModelCore from './ModelCore'
@@ -27,13 +27,13 @@ function lerpShortestAngle(from, to, progress) {
 export default function AnimatedModel({ progress, navigationAnimation, isWarpingViaButton = false, isInitialLoading = false, onModelReady }) {
   const group = useRef(null)
   const clickWave = useRef({ active: false, time: 0 })
-  const frozenRotation = useRef(new THREE.Euler())
-  const navigationPose = useRef({
+  const frozenRotation = useMemo(() => new THREE.Euler(), [])
+  const navigationPose = useMemo(() => ({
     id: -1,
     rotation: new THREE.Euler(),
     position: new THREE.Vector3(),
     scale: 0.92,
-  })
+  }), [])
   const wasWarpingViaButton = useRef(false)
   const dragRotation = useRef({ active: false, x: 0, y: 0, lastX: 0, lastY: 0 })
 
@@ -48,7 +48,7 @@ export default function AnimatedModel({ progress, navigationAnimation, isWarping
   useFrame((state, delta) => {
     if (!group.current) return
     const p = progress.current
-    const time = state.clock.getElapsedTime()
+    const time = state.clock.elapsedTime
 
     // Keep the model visible until the camera physically crosses its core.
     // Hiding it at the progress boundary leaves a blank frame while the camera
@@ -69,21 +69,21 @@ export default function AnimatedModel({ progress, navigationAnimation, isWarping
     }
 
     if (isWarpingViaButton && !wasWarpingViaButton.current) {
-      frozenRotation.current.copy(group.current.rotation)
+      frozenRotation.copy(group.current.rotation)
     }
     wasWarpingViaButton.current = isWarpingViaButton
 
     if (navigation?.active) {
-      if (navigationPose.current.id !== navigation.id) {
-        navigationPose.current.id = navigation.id
-        navigationPose.current.rotation.copy(group.current.rotation)
-        navigationPose.current.position.copy(group.current.position)
-        navigationPose.current.scale = group.current.scale.x || 0.92
+      if (navigationPose.id !== navigation.id) {
+        navigationPose.id = navigation.id
+        navigationPose.rotation.copy(group.current.rotation)
+        navigationPose.position.copy(group.current.position)
+        navigationPose.scale = group.current.scale.x || 0.92
       }
       const t = THREE.MathUtils.smoothstep(navigation.progress, 0, 1)
       const returningHome = navigation.direction === 'to-home'
       const betweenSections = navigation.direction === 'between-sections'
-      const start = navigationPose.current
+      const start = navigationPose
       const turnDirection = -Math.sign(navigation.targetIndex - navigation.sourceIndex)
       const targetRotationX = betweenSections ? start.rotation.x : 0
       const targetRotationY = betweenSections ? start.rotation.y : returningHome ? 0 : Math.PI
@@ -240,7 +240,7 @@ export default function AnimatedModel({ progress, navigationAnimation, isWarping
     const targetRotZ = scrollRotZ + bioTiltZ + (navigationAnimation?.current?.rotationOffsetZ ?? 0)
 
     if (isWarpingViaButton) {
-      group.current.rotation.copy(frozenRotation.current)
+      group.current.rotation.copy(frozenRotation)
     } else {
       group.current.rotation.x = THREE.MathUtils.damp(group.current.rotation.x, targetRotX, 3.2, delta)
       group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, targetRotY, 3.6, delta)
