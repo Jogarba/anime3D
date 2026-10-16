@@ -9,7 +9,7 @@ export default defineConfig({
   },
   build: {
     // Vite checks uncompressed output; Three.js is ~180 KB over the wire (gzip).
-    // Keep the warning useful for unexpectedly larger chunks without flagging this vendor bundle.
+    // Keep the warning useful for unexpectedly larger chunks without flagging this vendor bundle. jgjgjgjgjgjgjgjg
     chunkSizeWarningLimit: 750,
     rollupOptions: {
       output: {
